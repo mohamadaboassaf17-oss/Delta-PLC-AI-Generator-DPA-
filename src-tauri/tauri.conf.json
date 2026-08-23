@@ -1,0 +1,52 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Delta PLC AI Generator (DPA)",
+  "version": "0.1.0",
+  "identifier": "com.delta.dpa",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Delta PLC AI Generator (DPA)",
+        "width": 1280,
+        "height": 800
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com ipc: http://ipc.localhost; img-src 'self' data: asset: https://asset.localhost; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis"],
+    "publisher": "Delta PLC AI Generator Contributors",
+    "category": "DeveloperTool",
+    "copyright": "© 2026 Delta PLC AI Generator Contributors",
+    "shortDescription": "AI-assisted Delta DVP PLC code generator",
+    "longDescription": "Delta PLC AI Generator (DPA) generates Structured Text (ST) and Instruction List (IL) code for Delta DVP Series PLCs from natural-language descriptions. Includes address conflict detection, ladder diagram rendering, and export to ISPSoft (XML) and DOPSoft (CSV) formats.",
+    "homepage": "https://github.com/delta/dpa",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "wix": {
+        "language": ["en-US"]
+      },
+      "nsis": {
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico",
+        "installMode": "currentUser",
+        "languages": ["English"]
+      }
+    }
+  }
+}

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import {
   useState,
   useEffect,
@@ -6,7 +7,6 @@ import {
   useRef,
   type ReactElement,
   type KeyboardEvent,
-  type ChangeEvent,
 } from 'react'
 import { useProject } from '@/hooks/useProject'
 import { dvpListModels } from '@/lib/tauriApi'
@@ -14,6 +14,7 @@ import type { DvpModelSpec } from '@/lib/tauriApi'
 import type { IOPoint, IOPointType } from '@/types/io'
 import { generateAddress } from '@/types/io'
 import { validateDvpAddress } from '@/lib/validators/dvpAddress'
+import { Dropdown } from '@/components/Dropdown'
 
 const IO_TYPE_OPTIONS: IOPointType[] = ['Input', 'Output', 'Relay', 'Timer', 'Counter']
 
@@ -46,6 +47,25 @@ type EditableCol = 'address' | 'label'
 type ExpandableCol = 'defaultValue' | 'comment'
 
 type AnyCol = EditableCol | ExpandableCol
+
+/**
+ * M3 — Validate Timer/Counter preset value.
+ * Timers and Counters must use a K-constant (decimal) or H-constant (hex)
+ * when a default value is provided, e.g. K50 (5.0s). Other types accept
+ * free-form text.
+ * @returns null when valid, Arabic error message when invalid.
+ */
+export function validatePreset(
+  value: string | undefined,
+  type: IOPointType,
+): string | null {
+  if (type !== 'Timer' && type !== 'Counter') return null
+  const trimmed = (value ?? '').trim()
+  if (trimmed === '') return null
+  const upper = trimmed.toUpperCase()
+  if (/^(K\d+|H[0-9A-F]+)$/.test(upper)) return null
+  return 'الصيغة غير صالحة — استخدم K متبوعاً برقم، مثل K50'
+}
 
 interface EditState {
   row: number
@@ -82,8 +102,8 @@ export function IOMappingTable(): ReactElement {
   const selectedSpec = models.find((m) => m.label === selectedModel)
 
   const handleModelChange = useCallback(
-    (e: ChangeEvent<HTMLSelectElement>) => {
-      setProjectModel(e.target.value)
+    (model: string) => {
+      setProjectModel(model)
     },
     [setProjectModel],
   )
@@ -216,28 +236,28 @@ export function IOMappingTable(): ReactElement {
     [ioTable],
   )
 
+  // M3 — Timer/Counter preset validation. DefaultValue for T/C must be
+  // a K-constant (e.g. K50 = 5.0s). Other types accept free text.
+  const presetErrors = useMemo<(string | null)[]>(
+    () => ioTable.map((p) => validatePreset(p.defaultValue, p.type)),
+    [ioTable],
+  )
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
         <label htmlFor="model-select" className="text-sm font-medium text-[var(--color-text)]">
           Model
         </label>
-        <select
+        <Dropdown
           id="model-select"
-          data-testid="model-select"
-          className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-accent)] focus:outline-none"
+          testId="model-select"
+          ariaLabel="Model"
           value={selectedModel}
           onChange={handleModelChange}
-        >
-          <option value="" disabled>
-            {modelsError ? 'Failed to load models' : 'Select a model...'}
-          </option>
-          {models.map((m) => (
-            <option key={m.label} value={m.label}>
-              {m.label}
-            </option>
-          ))}
-        </select>
+          placeholder={modelsError ? 'Failed to load models' : 'Select a model...'}
+          options={models.map((m) => ({ value: m.label, label: m.label }))}
+        />
       </div>
 
       {warnings.length > 0 && (
@@ -328,18 +348,15 @@ export function IOMappingTable(): ReactElement {
                     )}
                   </td>
                   <td className="px-1 py-1.5">
-                    <select
-                      data-testid={`io-type-${idx}`}
-                      className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-1 py-1 text-xs text-[var(--color-text)] focus:border-[var(--color-accent)] focus:outline-none"
+                    <Dropdown
+                      testId={`io-type-${idx}`}
+                      ariaLabel={`Type for row ${idx + 1}`}
+                      size="sm"
+                      className="w-full"
                       value={point.type}
-                      onChange={(e) => updateType(idx, e.target.value as IOPointType)}
-                    >
-                      {IO_TYPE_OPTIONS.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(v) => updateType(idx, v as IOPointType)}
+                      options={IO_TYPE_OPTIONS.map((t) => ({ value: t, label: t }))}
+                    />
                   </td>
                   <td className="px-1 py-1.5">
                     <input
@@ -384,8 +401,17 @@ export function IOMappingTable(): ReactElement {
                 </tr>
               )
             })}
-            {ioTable.map((point, idx) =>
-              expandedRows.has(idx) ? (
+            {ioTable.map((point, idx) => {
+              if (!expandedRows.has(idx)) return null
+              const presetError = presetErrors[idx]
+              const isPresetInvalid = presetError !== null
+              const isTimerOrCounter = point.type === 'Timer' || point.type === 'Counter'
+              const defaultPlaceholder = isTimerOrCounter
+                ? point.type === 'Timer'
+                  ? 'K50 (e.g. 5.0s)'
+                  : 'K10'
+                : '...'
+              return (
                 <tr
                   key={`${point.type}-${idx}-more`}
                   data-testid={`io-more-row-${idx}`}
@@ -398,13 +424,35 @@ export function IOMappingTable(): ReactElement {
                         <input
                           type="text"
                           data-testid={`io-default-${idx}`}
-                          className="w-full rounded border border-[var(--color-border)] bg-[var(--color-panel)] px-1.5 py-1 text-xs text-[var(--color-text)] placeholder:text-[var(--color-muted)] focus:border-[var(--color-accent)] focus:outline-none"
-                          placeholder="..."
+                          aria-invalid={isPresetInvalid}
+                          aria-describedby={isPresetInvalid ? `io-default-${idx}-error` : undefined}
+                          className={`w-full rounded border bg-[var(--color-panel)] px-1.5 py-1 text-xs text-[var(--color-text)] placeholder:text-[var(--color-muted)] focus:outline-none ${
+                            isPresetInvalid
+                              ? 'border-red-500 focus:border-red-500'
+                              : 'border-[var(--color-border)] focus:border-[var(--color-accent)]'
+                          }`}
+                          placeholder={defaultPlaceholder}
+                          title={isTimerOrCounter ? 'Timer/Counter preset must be K followed by digits, e.g. K50' : undefined}
                           value={point.defaultValue ?? ''}
                           onFocus={() => handleFieldFocus(idx, 'defaultValue', point.defaultValue ?? '')}
                           onBlur={handleFieldBlur}
-                          onChange={(e) => updateField(idx, 'defaultValue', e.target.value)}
+                          onChange={(e) =>
+                            updateField(
+                              idx,
+                              'defaultValue',
+                              isTimerOrCounter ? e.target.value.toUpperCase() : e.target.value,
+                            )
+                          }
                         />
+                        {isPresetInvalid && (
+                          <p
+                            id={`io-default-${idx}-error`}
+                            data-testid={`io-default-${idx}-error`}
+                            className="text-[10px] leading-tight text-red-400"
+                          >
+                            {presetError}
+                          </p>
+                        )}
                       </label>
                       <label className="flex flex-col gap-1 text-xs text-[var(--color-muted)]">
                         <span>Comment</span>
@@ -422,8 +470,8 @@ export function IOMappingTable(): ReactElement {
                     </div>
                   </td>
                 </tr>
-              ) : null,
-            )}
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -445,7 +493,7 @@ interface Warning {
   limit: number
 }
 
-function buildWarnings(ioTable: IOPoint[], spec: DvpModelSpec | undefined): Warning[] {
+export function buildWarnings(ioTable: IOPoint[], spec: DvpModelSpec | undefined): Warning[] {
   if (!spec) return []
   const warnings: Warning[] = []
   const typeCounts: Record<IOPointType, number> = {

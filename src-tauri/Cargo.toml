@@ -1,7 +1,7 @@
 [package]
 name = "dpa"
 version = "0.1.0"
-description = "Delta PLC AI Generator — AI-assisted ST/IL code generation for Delta DVP Series PLCs"
+description = "Delta PLC AI Generator — AI-assisted ST/LD/IL code generation for Delta DVP Series PLCs"
 authors = ["Delta PLC AI Generator Contributors"]
 edition = "2021"
 rust-version = "1.77"
@@ -30,3 +30,7 @@ serde_json = "1"
 thiserror = "1"
 tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread", "sync"] }
 uuid = { version = "1", features = ["serde", "v4"] }
+
+[profile.release]
+strip = true
+lto = "thin"

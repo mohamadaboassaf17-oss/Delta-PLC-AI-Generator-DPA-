@@ -14,6 +14,7 @@ import { ConflictBanner } from '@/components/ConflictBanner'
 import { useProject } from '@/hooks/useProject'
 import { useCodeConflicts } from '@/hooks/useCodeConflicts'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
+import { renderLadder } from '@/lib/tauriApi'
 
 export interface CodeGenerationPanelProps {
   /** Optional callback to open the chat panel — invoked only when the user clicks the conflict banner's "Show Details" button. */
@@ -34,10 +35,43 @@ const TABS: readonly TabDescriptor[] = [
   { id: 'il', label: 'Instruction List', testId: 'tab-il' },
 ]
 
+function isMissingKeyError(message: string): boolean {
+  return message.includes('No API key') || message.includes('API key')
+}
+
+function extractRechargeLink(message: string): string | null {
+  const match = message.match(/https:\/\/[^\s)]+/)
+  return match ? match[0] : null
+}
+
+function hasRechargeLink(message: string): boolean {
+  return extractRechargeLink(message) !== null
+}
+
+function renderErrorWithLink(message: string): ReactElement {
+  const url = extractRechargeLink(message)
+  if (!url) return <>{message}</>
+  const parts = message.split(url)
+  return (
+    <>
+      {parts[0]}
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        className="underline hover:text-white"
+      >
+        {url}
+      </a>
+      {parts[1] ?? ''}
+    </>
+  )
+}
+
 export default function CodeGenerationPanel({
   onOpenChat,
 }: CodeGenerationPanelProps = {}): ReactElement {
-  const { project } = useProject()
+  const { project, setGenerated } = useProject()
   const {
     isGenerating,
     streamingSt,
@@ -55,6 +89,26 @@ export default function CodeGenerationPanel({
 
   const hasProject = project !== null
   const ladderGraph = project?.generated?.ld ?? null
+
+  // M6.1 — Deterministic ST→LD fallback via `render_ladder` IPC.
+  // The happy path pre-computes `ldGraph` in the `generation-done` /
+  // `modification-done` payload (`generation.rs:432,446`). This effect covers
+  // legacy `.dpa` files (v2) or manual edits where `st` exists but `ld` is
+  // missing/empty, healing the graph lazily without blocking render.
+  const lastHealedStRef = useRef<string | null>(null)
+  useEffect(() => {
+    const st = project?.generated?.st
+    const ld = project?.generated?.ld
+    if (!st || isGenerating) return
+    if (ld && ld.nodes.length > 0) return
+    if (lastHealedStRef.current === st) return
+    lastHealedStRef.current = st
+    void renderLadder(st).then((res) => {
+      if (res.data && res.data.nodes.length > 0 && project?.generated) {
+        setGenerated({ ...project.generated, ld: res.data })
+      }
+    })
+  }, [project?.generated?.st, project?.generated?.ld, project?.generated, isGenerating, setGenerated])
 
   // Local-only UI state — intentionally NOT persisted in `.dpa` (per PRD §7
   // and AGENTS.md: "Active tab state is local UI state").
@@ -134,7 +188,30 @@ export default function CodeGenerationPanel({
             <line x1="12" y1="8" x2="12" y2="12" />
             <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
-          <span className="flex-1">{generationError}</span>
+          <div className="flex flex-1 flex-col gap-2">
+            <span>{renderErrorWithLink(generationError)}</span>
+            {isMissingKeyError(generationError) && (
+              <button
+                type="button"
+                data-testid="open-settings-from-generation-error"
+                onClick={() => window.dispatchEvent(new CustomEvent('dpa:open-settings'))}
+                className="self-start rounded-md bg-red-900/60 px-3 py-1 text-xs font-medium text-red-200 hover:bg-red-800/80 hover:text-white transition-colors"
+              >
+                Open Settings →
+              </button>
+            )}
+            {hasRechargeLink(generationError) && !isMissingKeyError(generationError) && (
+              <a
+                href={extractRechargeLink(generationError) ?? '#'}
+                target="_blank"
+                rel="noreferrer"
+                data-testid="recharge-link-generation-error"
+                className="self-start text-xs text-red-200 underline hover:text-white"
+              >
+                Recharge / Manage API key →
+              </a>
+            )}
+          </div>
           <button
             className="shrink-0 text-red-400 hover:text-red-300 transition-colors"
             onClick={clearGeneration}

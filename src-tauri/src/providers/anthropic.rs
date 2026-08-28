@@ -92,9 +92,118 @@ impl AiProvider for AnthropicProvider {
     }
 
     fn parse_error(&self, status: u16, body: &str) -> ProviderError {
-        ProviderError::Api {
+        let message = super::openai_compat::format_openai_compat_error(
             status,
-            message: body.to_string(),
+            body,
+            "https://console.anthropic.com/settings/keys",
+        );
+        ProviderError::Api { status, message }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::providers::{GenConfig, Message};
+
+    fn cfg(model: &str) -> GenConfig {
+        GenConfig { temperature: 0.3, max_tokens: 2048, model: model.to_string() }
+    }
+
+    #[test]
+    fn build_request_sets_anthropic_headers_and_url() {
+        let p = AnthropicProvider;
+        let msgs = vec![Message { role: "user".into(), content: "hi".into() }];
+        let parts = p.build_request("sk-ant-test", &msgs, &cfg("claude-sonnet-4-6")).expect("ok");
+        assert_eq!(parts.url, ANTHROPIC_URL);
+        assert_eq!(parts.method, "POST");
+        assert!(parts.headers.iter().any(|(k, v)| k == "x-api-key" && v == "sk-ant-test"));
+        assert!(parts.headers.iter().any(|(k, v)| k == "anthropic-version" && v == ANTHROPIC_VERSION));
+        assert!(parts.headers.iter().any(|(k, _)| k == "Content-Type"));
+        let body: serde_json::Value = serde_json::from_str(&parts.body_json).expect("json");
+        assert_eq!(body["model"], "claude-sonnet-4-6");
+        assert_eq!(body["stream"], true);
+    }
+
+    #[test]
+    fn build_request_extracts_system_message() {
+        let p = AnthropicProvider;
+        let msgs = vec![
+            Message { role: "system".into(), content: "DVP cheatsheet".into() },
+            Message { role: "user".into(), content: "Start motor".into() },
+        ];
+        let parts = p.build_request("k", &msgs, &cfg("claude-sonnet-4-6")).expect("ok");
+        let body: serde_json::Value = serde_json::from_str(&parts.body_json).expect("json");
+        assert_eq!(body["system"], "DVP cheatsheet");
+        assert_eq!(body["messages"].as_array().unwrap().len(), 1);
+        assert_eq!(body["messages"][0]["role"], "user");
+    }
+
+    #[test]
+    fn build_request_without_system_has_no_system_field() {
+        let p = AnthropicProvider;
+        let msgs = vec![Message { role: "user".into(), content: "ping".into() }];
+        let parts = p.build_request("k", &msgs, &cfg("claude-sonnet-4-6")).expect("ok");
+        let body: serde_json::Value = serde_json::from_str(&parts.body_json).expect("json");
+        assert!(body.get("system").is_none());
+    }
+
+    #[test]
+    fn parse_stream_content_block_delta() {
+        let p = AnthropicProvider;
+        let line = r#"{"type":"content_block_delta","delta":{"text":"hello "}}"#;
+        let chunk = p.parse_stream_line(line).expect("parse");
+        assert_eq!(chunk.delta.as_deref(), Some("hello "));
+        assert!(!chunk.finished);
+    }
+
+    #[test]
+    fn parse_stream_message_stop_finishes() {
+        let p = AnthropicProvider;
+        let line = r#"{"type":"message_stop"}"#;
+        let chunk = p.parse_stream_line(line).expect("parse");
+        assert!(chunk.finished);
+        assert!(chunk.delta.is_none());
+    }
+
+    #[test]
+    fn parse_stream_error_returns_api_error() {
+        let p = AnthropicProvider;
+        let line = r#"{"type":"error","error":{"message":"overloaded"}}"#;
+        let err = p.parse_stream_line(line).expect_err("must error");
+        match err {
+            ProviderError::Api { message, .. } => assert!(message.contains("overloaded")),
+            other => panic!("expected Api, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_stream_unknown_type_is_noop() {
+        let p = AnthropicProvider;
+        let line = r#"{"type":"message_start","message":{"id":"msg_123"}}"#;
+        let chunk = p.parse_stream_line(line).expect("noop");
+        assert!(!chunk.finished);
+        assert!(chunk.delta.is_none());
+    }
+
+    #[test]
+    fn parse_stream_invalid_json_returns_malformed() {
+        let p = AnthropicProvider;
+        let err = p.parse_stream_line("not json").expect_err("malformed");
+        assert!(matches!(err, ProviderError::MalformedChunk(_)));
+    }
+
+    #[test]
+    fn parse_error_401_contains_anthropic_key_url() {
+        let p = AnthropicProvider;
+        let body = r#"{"error":{"message":"invalid x-api-key"}}"#;
+        let err = p.parse_error(401, body);
+        match err {
+            ProviderError::Api { message, .. } => {
+                assert!(message.contains("https://console.anthropic.com/settings/keys"));
+                assert!(message.contains("مفتاح"));
+            }
+            other => panic!("got {other:?}"),
         }
     }
 }

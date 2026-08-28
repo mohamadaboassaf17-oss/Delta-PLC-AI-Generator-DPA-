@@ -1,6 +1,8 @@
-# Tasks — Delta PLC AI Generator (DPA)
+<!-- ARCHIVED 2026-08-29 — Legacy M10 (tasks(1).md) superseded by canonical tasks.md M1–M11. Kept for project history only. Do not update. Canonical source: tasks.md + PROJECT_STATE.md (Single Source of Truth). Original path: tasks(1).md -->
 
-> **ملاحظة:** هذا الملف يحتوي على M10 فقط. M0–M9 مكتملة بالكامل — راجع النسخة السابقة من `tasks.md` للسجل التاريخي.
+# Tasks — Delta PLC AI Generator (DPA) — LEGACY M10 (superseded)
+
+> **ملاحظة:** هذا الملف **legacy** يحتوي على M10 فقط (التقسيم القديم قبل `tasks.md` الجديد M1–M11). **M0–M9 مكتملة** في التقسيم القديم و**M1–M6 مكتملة** في `tasks.md` الحالي (2026-08-28). احتُفظ بهذا الملف للتاريخ فقط — المصدر القانوني الحالي هو `tasks.md` (و `PROJECT_STATE.md` كـ Single Source of Truth). لا تُحدَّث checklist هنا بعد 2026-08-28.
 
 ---
 

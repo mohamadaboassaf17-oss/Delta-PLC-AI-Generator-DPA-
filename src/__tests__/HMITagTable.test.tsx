@@ -41,6 +41,7 @@ function ProjectSetupWrapper({ children }: { children: ReactElement }) {
 
   useEffect(() => {
     createNew('Test Project').then(() => setReady(true))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   if (!ready) return <div data-testid="loading">Loading...</div>
@@ -88,8 +89,8 @@ describe('HMITagTable', () => {
     })
 
     expect(screen.getByText('M1')).toBeInTheDocument()
-    expect(screen.getByTestId('hmi-type-0')).toHaveValue('Button')
-    expect(screen.getByTestId('hmi-type-1')).toHaveValue('Lamp')
+    expect(screen.getByTestId('hmi-type-0')).toHaveTextContent('Button')
+    expect(screen.getByTestId('hmi-type-1')).toHaveTextContent('Lamp')
     expect(screen.getByTestId('hmi-label-0')).toHaveValue('Start')
     expect(screen.getByTestId('hmi-label-1')).toHaveValue('Running')
     // M12.1.3 — plcRef moves to the expandable row. Expand the first row
@@ -111,7 +112,7 @@ describe('HMITagTable', () => {
 
     await user.click(screen.getByTestId('hmi-add-row'))
 
-    expect(screen.getByTestId('hmi-type-0')).toHaveValue('Button')
+    expect(screen.getByTestId('hmi-type-0')).toHaveTextContent('Button')
     expect(screen.getByTestId('hmi-label-0')).toHaveValue('')
     expect(screen.getByText('Manual')).toBeInTheDocument()
   })
@@ -128,9 +129,10 @@ describe('HMITagTable', () => {
       expect(screen.getByTestId('hmi-type-0')).toBeInTheDocument()
     })
 
-    await user.selectOptions(screen.getByTestId('hmi-type-0'), 'Lamp')
+    await user.click(screen.getByTestId('hmi-type-0'))
+    await user.click(screen.getByRole('option', { name: 'Lamp' }))
 
-    expect(screen.getByTestId('hmi-type-0')).toHaveValue('Lamp')
+    expect(screen.getByTestId('hmi-type-0')).toHaveTextContent('Lamp')
     expect(screen.getByText('Manual')).toBeInTheDocument()
   })
 
@@ -350,6 +352,79 @@ describe('HMITagTable', () => {
       expect(screen.getByTestId('hmi-source-1')).toHaveTextContent('Manual')
       // plcRef/comment not yet rendered (rows are collapsed by default).
       expect(screen.queryByTestId('hmi-plcref-0')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('overflow banner (M7.1)', () => {
+    it('shows overflow banner when auto tags have null address', async () => {
+      const tags: HMITag[] = [
+        { address: null, type: 'Button', label: 'Btn', plcRef: 'X0', source: 'auto' },
+      ]
+      const hmiTable: HmiTable = { tags, reservedMRange: null, model: null }
+      renderWithProject({ hmi_table: hmiTable })
+      await waitFor(() => {
+        expect(screen.getByTestId('hmi-overflow-banner')).toBeInTheDocument()
+      })
+      expect(screen.getByTestId('hmi-overflow-banner')).toHaveTextContent(/could not reserve/)
+    })
+
+    it('does not show overflow banner when only manual tags have null address', async () => {
+      const tags: HMITag[] = [
+        { address: null, type: 'Button', label: 'Pending', plcRef: 'X0', source: 'manual' },
+      ]
+      const hmiTable: HmiTable = { tags, reservedMRange: null, model: null }
+      renderWithProject({ hmi_table: hmiTable })
+      await waitFor(() => {
+        expect(screen.getByTestId('hmi-add-row')).toBeInTheDocument()
+      })
+      expect(screen.queryByTestId('hmi-overflow-banner')).not.toBeInTheDocument()
+    })
+
+    it('keeps expanded state correctly after deleting a row', async () => {
+      const user = userEvent.setup()
+      const tags: HMITag[] = [
+        { address: 'M0', type: 'Button', label: 'A', plcRef: 'X0', source: 'manual' },
+        { address: 'M1', type: 'Lamp', label: 'B', plcRef: 'X1', source: 'manual' },
+        { address: 'M2', type: 'Alarm', label: 'C', plcRef: 'X2', source: 'manual' },
+      ]
+      const hmiTable: HmiTable = { tags, reservedMRange: [0, 2], model: null }
+      renderWithProject({ hmi_table: hmiTable })
+
+      await waitFor(() => {
+        expect(screen.getByTestId('hmi-more-1')).toBeInTheDocument()
+      })
+      await user.click(screen.getByTestId('hmi-more-1'))
+      await user.click(screen.getByTestId('hmi-more-2'))
+      await waitFor(() => {
+        expect(screen.getByTestId('hmi-more-row-1')).toBeInTheDocument()
+        expect(screen.getByTestId('hmi-more-row-2')).toBeInTheDocument()
+      })
+      await user.click(screen.getByTestId('hmi-delete-0'))
+      await waitFor(() => {
+        expect(screen.queryByText('M0')).not.toBeInTheDocument()
+      })
+      // After deleting row 0, old rows 1 and 2 shift to 0 and 1 and should remain expanded.
+      expect(screen.getByTestId('hmi-more-row-0')).toBeInTheDocument()
+      expect(screen.getByTestId('hmi-more-row-1')).toBeInTheDocument()
+    })
+
+    it('exposes title tooltips on truncated cells', async () => {
+      const tags: HMITag[] = [
+        { address: 'M5', type: 'Button', label: 'Very Long Label That May Truncate', plcRef: 'X0', source: 'auto', comment: 'A comment' },
+      ]
+      const hmiTable: HmiTable = { tags, reservedMRange: [5, 5], model: null }
+      renderWithProject({ hmi_table: hmiTable })
+      await waitFor(() => {
+        expect(screen.getByTestId('hmi-label-0')).toBeInTheDocument()
+      })
+      expect(screen.getByTestId('hmi-label-0')).toHaveAttribute('title', 'Very Long Label That May Truncate')
+      expect(screen.getByTestId('hmi-source-0')).toHaveAttribute('title')
+      await userEvent.setup().click(screen.getByTestId('hmi-more-0'))
+      await waitFor(() => {
+        expect(screen.getByTestId('hmi-plcref-0')).toBeInTheDocument()
+      })
+      expect(screen.getByTestId('hmi-plcref-0')).toHaveAttribute('title', 'X0')
+      expect(screen.getByTestId('hmi-comment-0')).toHaveAttribute('title', 'A comment')
     })
   })
 })

@@ -1,4 +1,5 @@
 import type { Provider } from '@/types/settings'
+import { BRANDS } from '@/lib/brands'
 
 export interface ProviderLabel {
   name: string
@@ -9,19 +10,19 @@ export interface ProviderLabel {
 
 export const PROVIDER_LABELS: Record<Provider, ProviderLabel> = {
   openai: {
-    name: 'OpenAI',
+    name: BRANDS.openai,
     keyUrl: 'https://platform.openai.com/api-keys',
     docsUrl: 'https://platform.openai.com/docs',
     abbreviation: 'OAI',
   },
   anthropic: {
-    name: 'Anthropic',
+    name: BRANDS.anthropic,
     keyUrl: 'https://console.anthropic.com/settings/keys',
     docsUrl: 'https://docs.anthropic.com',
     abbreviation: 'ANT',
   },
   gemini: {
-    name: 'Google Gemini',
+    name: BRANDS.gemini,
     keyUrl: 'https://aistudio.google.com/apikey',
     docsUrl: 'https://ai.google.dev/docs',
     abbreviation: 'GEM',

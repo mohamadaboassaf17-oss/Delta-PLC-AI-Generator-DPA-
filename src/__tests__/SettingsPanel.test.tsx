@@ -560,10 +560,10 @@ describe('SettingsPanel — Gemini model selector (M11.2)', () => {
     render(<SettingsPanel open onClose={vi.fn()} />)
     await openDialog()
     await user.click(screen.getByTestId('provider-button-gemini'))
-    // The Gemini model <select> should be visible and default to flash.
-    const select = screen.getByTestId('gemini-model-select') as HTMLSelectElement
+    // The Gemini model dropdown should be visible and default to flash.
+    const select = screen.getByTestId('gemini-model-select')
     expect(select).toBeInTheDocument()
-    expect(select.value).toBe('gemini-2.5-flash')
+    expect(select).toHaveTextContent('gemini-2.5-flash')
   })
 
   it('Gemini model selector shows the four options', async () => {
@@ -571,12 +571,11 @@ describe('SettingsPanel — Gemini model selector (M11.2)', () => {
     render(<SettingsPanel open onClose={vi.fn()} />)
     await openDialog()
     await user.click(screen.getByTestId('provider-button-gemini'))
-    const select = screen.getByTestId('gemini-model-select') as HTMLSelectElement
-    const options = Array.from(select.options).map((o) => o.value)
-    expect(options).toContain('gemini-2.5-pro')
-    expect(options).toContain('gemini-2.5-flash')
-    expect(options).toContain('gemini-2.5-flash-lite')
-    expect(options).toContain('Custom...')
+    await user.click(screen.getByTestId('gemini-model-select'))
+    expect(screen.getByRole('option', { name: 'gemini-2.5-pro' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'gemini-2.5-flash' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'gemini-2.5-flash-lite' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Custom...' })).toBeInTheDocument()
   })
 
   it('picking "Custom..." in the Gemini selector reveals a free-text input', async () => {
@@ -584,8 +583,8 @@ describe('SettingsPanel — Gemini model selector (M11.2)', () => {
     render(<SettingsPanel open onClose={vi.fn()} />)
     await openDialog()
     await user.click(screen.getByTestId('provider-button-gemini'))
-    const select = screen.getByTestId('gemini-model-select') as HTMLSelectElement
-    await user.selectOptions(select, 'Custom...')
+    await user.click(screen.getByTestId('gemini-model-select'))
+    await user.click(screen.getByRole('option', { name: 'Custom...' }))
     const input = screen.getByTestId('gemini-custom-model-input') as HTMLInputElement
     expect(input).toBeInTheDocument()
     await user.type(input, 'gemini-2.0-experimental')
@@ -598,11 +597,12 @@ describe('SettingsPanel — Gemini model selector (M11.2)', () => {
     await openDialog()
     await user.click(screen.getByTestId('provider-button-gemini'))
     // Switch to Custom first to make the input appear.
-    const select = screen.getByTestId('gemini-model-select') as HTMLSelectElement
-    await user.selectOptions(select, 'Custom...')
+    await user.click(screen.getByTestId('gemini-model-select'))
+    await user.click(screen.getByRole('option', { name: 'Custom...' }))
     expect(screen.getByTestId('gemini-custom-model-input')).toBeInTheDocument()
     // Now switch back to a built-in option.
-    await user.selectOptions(select, 'gemini-2.5-pro')
+    await user.click(screen.getByTestId('gemini-model-select'))
+    await user.click(screen.getByRole('option', { name: 'gemini-2.5-pro' }))
     expect(screen.queryByTestId('gemini-custom-model-input')).not.toBeInTheDocument()
   })
 })

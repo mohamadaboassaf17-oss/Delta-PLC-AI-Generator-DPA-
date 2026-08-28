@@ -3,6 +3,31 @@ import { useProject } from '@/hooks/useProject'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { useChat } from '@/hooks/useChat'
 
+function isMissingKeyErrorChat(message: string): boolean {
+  return message.includes('No API key') || message.includes('API key')
+}
+function extractRechargeLinkChat(message: string): string | null {
+  const match = message.match(/https:\/\/[^\s)]+/)
+  return match ? match[0] : null
+}
+function hasRechargeLinkChat(message: string): boolean {
+  return extractRechargeLinkChat(message) !== null
+}
+function renderChatErrorWithLink(message: string): ReactElement {
+  const url = extractRechargeLinkChat(message)
+  if (!url) return <>{message}</>
+  const parts = message.split(url)
+  return (
+    <>
+      {parts[0]}
+      <a href={url} target="_blank" rel="noreferrer" className="underline hover:text-white">
+        {url}
+      </a>
+      {parts[1] ?? ''}
+    </>
+  )
+}
+
 interface ChatPanelProps {
   /** When false the panel returns null. Defaults to true so the panel can be embedded inline (e.g., as a sidebar tab). */
   isOpen?: boolean
@@ -158,10 +183,31 @@ export function ChatPanel({ isOpen = true, onClose }: ChatPanelProps): ReactElem
         {modificationError && (
           <div
             data-testid="chat-error-banner"
-            className="rounded-lg border border-red-800 bg-red-950/50 px-3 py-2 text-sm text-red-300"
+            className="flex flex-col gap-2 rounded-lg border border-red-800 bg-red-950/50 px-3 py-2 text-sm text-red-300"
             role="alert"
           >
-            {modificationError}
+            <span>{renderChatErrorWithLink(modificationError)}</span>
+            {isMissingKeyErrorChat(modificationError) && (
+              <button
+                type="button"
+                data-testid="open-settings-from-chat-error"
+                onClick={() => window.dispatchEvent(new CustomEvent('dpa:open-settings'))}
+                className="self-start rounded-md bg-red-900/60 px-3 py-1 text-xs font-medium text-red-200 hover:bg-red-800/80 hover:text-white transition-colors"
+              >
+                Open Settings →
+              </button>
+            )}
+            {hasRechargeLinkChat(modificationError) && !isMissingKeyErrorChat(modificationError) && (
+              <a
+                href={extractRechargeLinkChat(modificationError) ?? '#'}
+                target="_blank"
+                rel="noreferrer"
+                data-testid="recharge-link-chat-error"
+                className="self-start text-xs text-red-200 underline hover:text-white"
+              >
+                Recharge / Manage API key →
+              </a>
+            )}
           </div>
         )}
 
@@ -189,7 +235,17 @@ export function ChatPanel({ isOpen = true, onClose }: ChatPanelProps): ReactElem
             type="submit"
             data-testid="chat-send-button"
             disabled={isModifying || !inputValue.trim() || !isOnline}
-            className="self-end rounded-md bg-[var(--color-accent)] px-4 py-2 text-sm text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-40"
+            aria-disabled={isModifying || !inputValue.trim() || !isOnline}
+            title={
+              !isOnline
+                ? 'Requires internet connection'
+                : isModifying
+                  ? 'Generation in progress — please wait'
+                  : !inputValue.trim()
+                    ? 'Enter a modification request first'
+                    : 'Send modification request'
+            }
+            className="self-end rounded-md bg-[var(--color-accent)] px-4 py-2 text-sm text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {isModifying ? 'Generating...' : 'Send'}
           </button>

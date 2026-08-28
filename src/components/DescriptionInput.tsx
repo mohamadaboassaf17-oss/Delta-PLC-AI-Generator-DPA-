@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useContext,
   useEffect,
   useRef,
@@ -10,6 +11,7 @@ import {
 import { useSettings } from '@/hooks/useSettings'
 import { useToast } from '@/components/Toast'
 import { ProjectContext } from '@/context/ProjectContext'
+import { useSpeechRecognition } from '@/hooks/useSpeechRecognition'
 
 interface DescriptionInputProps {
   onGenerate: (desc: string) => void
@@ -64,7 +66,29 @@ export function DescriptionInput({
     setDescription(e.target.value)
   }
 
+  const handleSpeechTranscript = useCallback((text: string) => {
+    setDescription((prev) => (prev ? `${prev} ${text}` : text))
+  }, [])
+
+  const { isSupported: isSpeechSupported, isListening, error: speechError, start: startListening, stop: stopListening } =
+    useSpeechRecognition(handleSpeechTranscript, 'ar-SA')
+
+  const handleMicClick = useCallback(() => {
+    if (isListening) stopListening()
+    else startListening()
+  }, [isListening, startListening, stopListening])
+
   const isDisabled = isGenerating || disabled === true
+  const isGenerateDisabled = isDisabled || !description.trim()
+  const generateTitle = isGenerating
+    ? 'Generation in progress — please wait'
+    : disabled
+      ? 'Create or open a project first'
+      : !description.trim()
+        ? 'Enter a description first'
+        : settings.generation.model.trim() === ''
+          ? 'Select a model in Settings first'
+          : 'Generate PLC code'
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
@@ -77,12 +101,57 @@ export function DescriptionInput({
         disabled={isDisabled}
         rows={4}
       />
-      <button
-        type="submit"
-        data-testid="generate-button"
-        disabled={isDisabled || !description.trim()}
-        className="self-end flex items-center gap-2 rounded-lg bg-[var(--color-accent)] px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
-      >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {isSpeechSupported ? (
+            <button
+              type="button"
+              data-testid="voice-button"
+              onClick={handleMicClick}
+              disabled={isDisabled}
+              aria-disabled={isDisabled}
+              aria-pressed={isListening}
+              title={
+                isDisabled
+                  ? 'Create or open a project first'
+                  : isListening
+                    ? 'Stop recording'
+                    : 'Record voice description (Arabic/English)'
+              }
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                isListening
+                  ? 'border-red-500 bg-red-950/30 text-red-300 animate-pulse'
+                  : 'border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] hover:bg-[var(--color-panel)]'
+              }`}
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z" />
+                <path d="M19 10a7 7 0 0 1-14 0" />
+                <line x1="12" y1="19" x2="12" y2="23" />
+                <line x1="8" y1="23" x2="16" y2="23" />
+              </svg>
+              {isListening ? 'Listening…' : 'Voice'}
+            </button>
+          ) : null}
+          {isListening ? (
+            <span className="text-xs text-red-300 animate-pulse" data-testid="voice-listening-indicator">
+              Listening…
+            </span>
+          ) : null}
+          {speechError ? (
+            <span className="text-xs text-amber-300" data-testid="voice-error" title={speechError}>
+              {speechError}
+            </span>
+          ) : null}
+        </div>
+        <button
+          type="submit"
+          data-testid="generate-button"
+          disabled={isGenerateDisabled}
+          aria-disabled={isGenerateDisabled}
+          title={generateTitle}
+          className="flex items-center gap-2 rounded-lg bg-[var(--color-accent)] px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
         {isGenerating ? (
           <>
             <svg
@@ -110,7 +179,8 @@ export function DescriptionInput({
         ) : (
           'Generate Code'
         )}
-      </button>
+        </button>
+      </div>
     </form>
   )
 }

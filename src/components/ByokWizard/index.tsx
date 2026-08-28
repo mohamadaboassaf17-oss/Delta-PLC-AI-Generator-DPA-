@@ -24,7 +24,12 @@ function loadPersisted(): PersistedState {
     const parsed = JSON.parse(raw) as Partial<PersistedState>
     const step: WizardStep = parsed.step === 2 || parsed.step === 3 || parsed.step === 4 ? parsed.step : 1
     const provider: Provider | null =
-      parsed.provider === 'openai' || parsed.provider === 'anthropic' ? parsed.provider : null
+      parsed.provider === 'openai' ||
+      parsed.provider === 'anthropic' ||
+      parsed.provider === 'gemini' ||
+      parsed.provider === 'custom'
+        ? (parsed.provider as Provider)
+        : null
     return { step, provider }
   } catch {
     return { step: 1, provider: null }

@@ -1,0 +1,68 @@
+/*
+ * Ladder Diagram dark theme — PRD M6 / FIX-04 companion.
+ *
+ * React Flow ships with light controls/background/minimap. This file is the
+ * sanctioned custom-CSS exception (like scrollbars.css) that themes those
+ * sub-components to the single dark palette so no white strips appear.
+ * Imported via index.css alongside scrollbars.css.
+ */
+
+/* Background dots: use muted border token instead of #f0f0f0 */
+.react-flow__background {
+  background-color: var(--color-panel);
+}
+
+/* Controls (zoom + fitView) — dark panel, muted icons, accent hover */
+.react-flow__controls {
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: none;
+}
+
+.react-flow__controls-button {
+  background: var(--color-panel);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-muted);
+  fill: var(--color-muted);
+}
+
+.react-flow__controls-button:hover {
+  background: var(--color-bg);
+  color: var(--color-accent);
+}
+
+.react-flow__controls-button svg {
+  fill: currentColor;
+}
+
+/* Minimap — dark panel, subtle viewport */
+.react-flow__minimap {
+  background-color: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.react-flow__minimap-mask {
+  fill: rgba(37, 99, 235, 0.15);
+  stroke: var(--color-accent);
+}
+
+/* Edges — muted → accent on hover/select */
+.react-flow__edge-path {
+  stroke: var(--color-muted);
+  stroke-width: 2;
+}
+
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:focus .react-flow__edge-path {
+  stroke: var(--color-accent);
+}
+
+/* Handles — inherit node border, hide default white */
+.react-flow__handle {
+  width: 8px;
+  height: 8px;
+  background: var(--color-border);
+  border: 1px solid var(--color-accent);
+}

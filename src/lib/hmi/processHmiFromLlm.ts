@@ -119,8 +119,10 @@ export function processHmiFromLlm(input: ProcessHmiInput): HmiTable {
 
   if (rawJson.trim() === '') {
     if (previous) {
-      previous.reservedMRange = null
-      return previous
+      if (previous.reservedMRange === null) return previous
+      // Pure-function fix: never mutate the caller's object (previous is
+      // often held in React state). Clone instead.
+      return { ...previous, tags: [...previous.tags], reservedMRange: null }
     }
     return emptyTable(modelLabel)
   }

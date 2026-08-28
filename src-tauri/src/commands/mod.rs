@@ -6,6 +6,7 @@ pub mod generation;
 pub mod io_table;
 pub mod ladder;
 pub mod project;
+pub mod recent_projects;
 pub mod secrets;
 pub mod settings;
 pub mod trusted_domains;

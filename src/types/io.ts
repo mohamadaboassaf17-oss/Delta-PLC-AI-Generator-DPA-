@@ -25,6 +25,16 @@ export function prefixForType(type: IOPointType): AddressPrefix {
   }
 }
 
+/**
+ * Generate the next sequential address for the given I/O type.
+ *
+ * Physical I/O (X/Y) on Delta DVP is **octal-numbered** — X0..X7 then X10.
+ * Using a plain decimal counter would emit invalid X8/X9. We therefore
+ * render the index in base-8 for those two prefixes; all other device
+ * classes (M/T/C) are decimal-numbered and use the index verbatim.
+ */
 export function generateAddress(type: IOPointType, index: number): string {
-  return `${prefixForType(type)}${index}`
+  const prefix = prefixForType(type)
+  const suffix = prefix === 'X' || prefix === 'Y' ? index.toString(8) : String(index)
+  return `${prefix}${suffix}`
 }

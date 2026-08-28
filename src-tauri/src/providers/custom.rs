@@ -45,10 +45,10 @@ impl AiProvider for CustomProvider {
         parse_chat_completions_line(line)
     }
     fn parse_error(&self, status: u16, body: &str) -> ProviderError {
-        ProviderError::Api {
-            status,
-            message: body.to_string(),
-        }
+        // Custom uses OpenAI-compatible format; no fixed key URL, so omit link.
+        let message =
+            super::openai_compat::format_openai_compat_error(status, body, "https://openai.com/api/");
+        ProviderError::Api { status, message }
     }
 }
 

@@ -6,7 +6,7 @@ use tauri::AppHandle;
 
 use crate::error::AppError;
 use crate::limits::MAX_SETTINGS_BYTES;
-use crate::models::settings::Settings;
+use crate::models::settings::{Provider, Settings};
 use crate::paths;
 
 /// Filename for settings inside `app_data_dir`.
@@ -68,6 +68,65 @@ pub fn settings_set(settings: Settings, app: AppHandle) -> Result<(), AppError> 
 fn settings_path(app: &AppHandle) -> Result<PathBuf, AppError> {
     let dir = paths::app_data_dir(app)?;
     Ok(dir.join(SETTINGS_FILE))
+}
+
+// ---------------------------------------------------------------------------
+// M4 / AGENTS.md alias layer — spec expects keychain operations under
+// `settings_*` names. The authoritative implementation lives in
+// `commands::secrets` (`secret_*`); these wrappers satisfy the AGENTS.md
+// contract `settings_set_api_key` / `settings_has_api_key` /
+// `settings_test_connection` without duplicating logic.
+// ---------------------------------------------------------------------------
+
+const KEYRING_SERVICE: &str = "dpa";
+
+/// Store `key` for `provider` in the OS keychain. Never logs the key
+/// and never returns it. Mirrors `secret_set`.
+#[tauri::command]
+pub fn settings_set_api_key(provider: Provider, key: String) -> Result<(), AppError> {
+    if key.is_empty() {
+        return Err(AppError::Other("key must not be empty".into()));
+    }
+    let entry = keyring::Entry::new(KEYRING_SERVICE, provider.keyring_username())?;
+    entry.set_password(&key)?;
+    Ok(())
+}
+
+/// Return `true` iff a key is stored for `provider`. Uses the keychain
+/// as the sole source of truth.
+#[tauri::command]
+pub fn settings_has_api_key(provider: Provider) -> Result<bool, AppError> {
+    let entry = keyring::Entry::new(KEYRING_SERVICE, provider.keyring_username())?;
+    match entry.get_password() {
+        Ok(_) => Ok(true),
+        Err(keyring::Error::NoEntry) => Ok(false),
+        Err(e) => Err(AppError::Keyring(e)),
+    }
+}
+
+/// Probe the stored (or supplied) key for `provider`. On success returns
+/// `Ok(())`; on failure returns `Err(AppError::Provider(message))` with a
+/// human-readable message that never contains the key. Uses the same HTTP
+/// probing logic as `secret_test` (`commands::secrets`) but surfaces the
+/// simpler `Result<(), AppError>` contract documented in `AGENTS.md`.
+#[tauri::command]
+pub async fn settings_test_connection(
+    app: tauri::AppHandle,
+    provider: Provider,
+    key: Option<String>,
+    custom_base_url: Option<String>,
+    custom_model_name: Option<String>,
+) -> Result<(), AppError> {
+    // Reuse the authoritative `secret_test` wrapper (includes Custom TOFU gate).
+    let result = crate::commands::secrets::secret_test(
+        app, provider, key, custom_base_url, custom_model_name,
+    )
+    .await?;
+    if result.ok {
+        Ok(())
+    } else {
+        Err(AppError::Provider(result.message))
+    }
 }
 
 #[cfg(test)]

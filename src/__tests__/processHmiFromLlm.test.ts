@@ -40,8 +40,14 @@ describe('processHmiFromLlm', () => {
       reservedMRange: [0, 0],
       model: 'DVP-SS2',
     }
+    const snap = JSON.stringify(previous)
     const result = processHmiFromLlm(makeInput({ rawJson: '', previous }))
-    expect(result).toBe(previous)
+    // M7.1 pure-function fix: no mutation, new object with cleared range
+    expect(result).not.toBe(previous)
+    expect(result.tags).toEqual(previous.tags)
+    expect(result.reservedMRange).toBeNull()
+    expect(result.model).toBe(previous.model)
+    expect(JSON.stringify(previous)).toBe(snap)
   })
 
   it('returns previous unchanged when rawJson is whitespace only', () => {
@@ -50,8 +56,12 @@ describe('processHmiFromLlm', () => {
       reservedMRange: [2, 2],
       model: 'DVP-SS2',
     }
+    const snap = JSON.stringify(previous)
     const result = processHmiFromLlm(makeInput({ rawJson: '   \n\t  ', previous }))
-    expect(result).toBe(previous)
+    expect(result).not.toBe(previous)
+    expect(result.tags).toEqual(previous.tags)
+    expect(result.reservedMRange).toBeNull()
+    expect(JSON.stringify(previous)).toBe(snap)
   })
 
   it('parses a valid JSON array and assigns addresses from reservation', () => {
@@ -189,8 +199,11 @@ describe('processHmiFromLlm', () => {
       reservedMRange: [0, 0],
       model: 'DVP-SS2',
     }
+    const snap = JSON.stringify(previous)
     const result = processHmiFromLlm(makeInput({ rawJson: '', previous }))
     expect(result.reservedMRange).toBeNull()
+    expect(result).not.toBe(previous)
+    expect(JSON.stringify(previous)).toBe(snap)
   })
 
   it('passes the modelLabel through to the returned table', () => {

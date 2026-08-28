@@ -10,6 +10,7 @@ import {
 import { useProject } from '@/hooks/useProject'
 import type { HMITag, HMIElementType, HMITagSource, HmiTable } from '@/types/hmi'
 import { checkHmiConflicts, type HmiConflict } from '@/lib/hmi/checkConflicts'
+import { Dropdown } from '@/components/Dropdown'
 
 const HMI_ELEMENT_TYPES: HMIElementType[] = ['Button', 'Lamp', 'Alarm', 'NumericDisplay', 'Setpoint']
 
@@ -57,6 +58,11 @@ export function HMITagTable(): ReactElement {
     [hmiTable, project?.io_table],
   )
 
+  const overflowCount = useMemo(
+    () => tags.filter((t) => t.source === 'auto' && t.address === null).length,
+    [tags],
+  )
+
   const conflictByTagAndKind = useMemo(() => {
     const map = new Map<string, HmiConflict>()
     conflicts.forEach((c) => {
@@ -98,10 +104,11 @@ export function HMITagTable(): ReactElement {
       }
       commitHmiTable(updated)
       setExpandedRows((prev) => {
-        if (!prev.has(idx)) return prev
+        if (prev.size === 0) return prev
         const next = new Set<number>()
         prev.forEach((n) => {
           if (n < idx) next.add(n)
+          else if (n > idx) next.add(n - 1)
         })
         return next
       })
@@ -206,6 +213,20 @@ export function HMITagTable(): ReactElement {
 
   return (
     <div className="flex flex-col gap-4">
+      {overflowCount > 0 && (
+        <div
+          data-testid="hmi-overflow-banner"
+          role="alert"
+          className="rounded-md border border-yellow-700 bg-yellow-900/30 px-4 py-3 text-sm text-yellow-200"
+        >
+          <p className="flex items-center gap-2">
+            <span className="select-none">&#9888;</span>
+            <span>
+              {overflowCount} HMI tag{overflowCount === 1 ? '' : 's'} could not reserve an M address (model limit reached) — edit relays or remove unused tags.
+            </span>
+          </p>
+        </div>
+      )}
       {conflicts.length > 0 && (
         <div
           data-testid="hmi-conflict-banner"
@@ -261,6 +282,7 @@ export function HMITagTable(): ReactElement {
                 >
                   <td className="px-2 py-1.5 font-mono text-xs text-[var(--color-muted)]">{idx + 1}</td>
                   <td
+                    title={tag.address ?? 'Unassigned (pending)'}
                     className={`px-1 py-1.5 font-mono text-xs ${
                       tag.address === null ? 'text-[var(--color-muted)]' : 'text-[var(--color-text)]'
                     } ${hasAddressOverlap(idx) ? 'rounded border-2 border-red-500 text-red-300' : ''}`}
@@ -269,18 +291,15 @@ export function HMITagTable(): ReactElement {
                     {tag.address ?? '\u2014'}
                   </td>
                   <td className="px-1 py-1.5">
-                    <select
-                      data-testid={`hmi-type-${idx}`}
-                      className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-1 py-1 text-xs text-[var(--color-text)] focus:border-[var(--color-accent)] focus:outline-none"
+                    <Dropdown
+                      testId={`hmi-type-${idx}`}
+                      ariaLabel={`Element type for row ${idx + 1}`}
+                      size="sm"
+                      className="w-full"
                       value={tag.type}
-                      onChange={(e) => updateType(idx, e.target.value as HMIElementType)}
-                    >
-                      {HMI_ELEMENT_TYPES.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(v) => updateType(idx, v as HMIElementType)}
+                      options={HMI_ELEMENT_TYPES.map((t) => ({ value: t, label: t }))}
+                    />
                   </td>
                   <td className="px-1 py-1.5">
                     <input
@@ -289,6 +308,7 @@ export function HMITagTable(): ReactElement {
                       data-io-col="label"
                       data-testid={`hmi-label-${idx}`}
                       ref={idx === tags.length - 1 ? addLabelRef : undefined}
+                      title={tag.label || 'e.g. Start'}
                       className="w-full min-w-0 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-1.5 py-1 text-xs text-[var(--color-text)] placeholder:text-[var(--color-muted)] focus:border-[var(--color-accent)] focus:outline-none"
                       placeholder="e.g. Start"
                       value={tag.label}
@@ -302,6 +322,7 @@ export function HMITagTable(): ReactElement {
                     {tag.source === 'auto' ? (
                       <span
                         data-testid={`hmi-source-${idx}`}
+                        title="Inferred automatically from generation"
                         className="inline-block rounded-full bg-green-900/40 px-2 py-0.5 text-[10px] font-medium text-green-300"
                       >
                         Auto
@@ -309,6 +330,7 @@ export function HMITagTable(): ReactElement {
                     ) : (
                       <span
                         data-testid={`hmi-source-${idx}`}
+                        title="Added or edited by user"
                         className="inline-block rounded-full bg-amber-900/40 px-2 py-0.5 text-[10px] font-medium text-amber-300"
                       >
                         Manual
@@ -356,6 +378,7 @@ export function HMITagTable(): ReactElement {
                         <input
                           type="text"
                           data-testid={`hmi-plcref-${idx}`}
+                          title={tag.plcRef || 'X0, Y1, M5...'}
                           className={`w-full rounded border bg-[var(--color-panel)] px-1.5 py-1 text-xs text-[var(--color-text)] placeholder:text-[var(--color-muted)] focus:border-[var(--color-accent)] focus:outline-none ${
                             hasPlcRefMissing(idx) ? 'border-red-500' : 'border-[var(--color-border)]'
                           }`}
@@ -371,6 +394,7 @@ export function HMITagTable(): ReactElement {
                         <input
                           type="text"
                           data-testid={`hmi-comment-${idx}`}
+                          title={tag.comment ?? 'Optional note'}
                           className="w-full min-w-0 rounded border border-[var(--color-border)] bg-[var(--color-panel)] px-1.5 py-1 text-xs text-[var(--color-text)] placeholder:text-[var(--color-muted)] focus:border-[var(--color-accent)] focus:outline-none"
                           placeholder="Optional note"
                           value={tag.comment ?? ''}
@@ -390,6 +414,8 @@ export function HMITagTable(): ReactElement {
 
       <button
         data-testid="hmi-add-row"
+        title="Add a new HMI tag (Manual)"
+        aria-label="Add HMI Tag"
         className="self-start rounded-md border border-dashed border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
         onClick={addRow}
       >

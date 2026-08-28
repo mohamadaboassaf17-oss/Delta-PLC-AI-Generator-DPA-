@@ -64,6 +64,31 @@ export async function projectListRecent(): Promise<RecentEntry[]> {
   }
 }
 
+export async function recentProjectsList(): Promise<RecentEntry[]> {
+  try {
+    return await invoke<RecentEntry[]>('recent_projects_list')
+  } catch {
+    // Fallback to legacy alias for installs that haven't migrated yet
+    return await invoke<RecentEntry[]>('project_list_recent')
+  }
+}
+
+export async function recentProjectsPush(path: string, name?: string): Promise<void> {
+  try {
+    await invoke<void>('recent_projects_push', { path, name })
+  } catch (err) {
+    throw normalizeError(err)
+  }
+}
+
+export async function recentProjectsRemove(path: string): Promise<void> {
+  try {
+    await invoke<void>('recent_projects_remove', { path })
+  } catch (err) {
+    throw normalizeError(err)
+  }
+}
+
 export async function projectClearActive(): Promise<void> {
   try {
     await invoke<void>('project_clear_active')
@@ -120,6 +145,45 @@ export async function secretTest(
 ): Promise<SecretTestResult> {
   try {
     return await invoke<SecretTestResult>('secret_test', {
+      provider,
+      key,
+      customBaseUrl,
+      customModelName,
+    })
+  } catch (err) {
+    throw normalizeError(err)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// M4 / AGENTS.md canonical alias layer — `settings_*` names for keychain ops
+// (frontend SHOULD use these; `secret_*` remain for backward compat).
+// ---------------------------------------------------------------------------
+
+export async function settingsSetApiKey(provider: Provider, key: string): Promise<void> {
+  try {
+    await invoke<void>('settings_set_api_key', { provider, key })
+  } catch (err) {
+    throw normalizeError(err)
+  }
+}
+
+export async function settingsHasApiKey(provider: Provider): Promise<boolean> {
+  try {
+    return await invoke<boolean>('settings_has_api_key', { provider })
+  } catch (err) {
+    throw normalizeError(err)
+  }
+}
+
+export async function settingsTestConnection(
+  provider: Provider,
+  key?: string,
+  customBaseUrl?: string,
+  customModelName?: string,
+): Promise<void> {
+  try {
+    await invoke<void>('settings_test_connection', {
       provider,
       key,
       customBaseUrl,

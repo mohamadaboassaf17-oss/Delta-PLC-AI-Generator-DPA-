@@ -261,7 +261,7 @@ describe('ProjectToolbar error toasts (replaces window.alert)', () => {
     expect(toast).toHaveTextContent(/clipboard: busy/i)
   })
 
-  it('successful export does not show a toast', async () => {
+  it('successful export shows a success toast (not an error toast)', async () => {
     invokeMock.mockImplementation((cmd: string) => {
       if (cmd === 'project_new') return Promise.resolve(projectWithExportable)
       if (cmd === 'export_xml') return Promise.resolve(undefined)
@@ -279,5 +279,106 @@ describe('ProjectToolbar error toasts (replaces window.alert)', () => {
       expect(invokeMock).toHaveBeenCalledWith('export_xml', expect.any(Object))
     })
     expect(screen.queryByTestId('toast-error')).not.toBeInTheDocument()
+    expect(await screen.findByTestId('toast-success')).toHaveTextContent(/XML exported/i)
+  })
+
+  it('successful CSV export shows a success toast', async () => {
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'project_new') return Promise.resolve(projectWithExportable)
+      if (cmd === 'export_csv') return Promise.resolve(undefined)
+      return Promise.resolve(null)
+    })
+    saveDialogMock.mockResolvedValueOnce('C:\\tmp\\out.csv')
+
+    renderWithSeedProject(projectWithExportable, 'Exportable')
+
+    const btn = await waitFor(() => screen.getByTestId('export-csv-btn'))
+    const user = userEvent.setup()
+    await user.click(btn)
+
+    await waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith('export_csv', expect.any(Object))
+    })
+    expect(await screen.findByTestId('toast-success')).toHaveTextContent(/CSV exported/i)
+  })
+
+  it('successful Copy IL shows a success toast', async () => {
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'project_new') return Promise.resolve(projectWithExportable)
+      if (cmd === 'copy_il_to_clipboard') return Promise.resolve(undefined)
+      return Promise.resolve(null)
+    })
+
+    renderWithSeedProject(projectWithExportable, 'Exportable')
+
+    const btn = await waitFor(() => screen.getByTestId('copy-il-btn'))
+    const user = userEvent.setup()
+    await user.click(btn)
+
+    expect(await screen.findByTestId('toast-success')).toHaveTextContent(/IL copied/i)
+  })
+})
+
+describe('ProjectToolbar export buttons FIX-09 — disabled tooltips + aria-disabled', () => {
+  beforeEach(() => {
+    invokeMock.mockReset()
+    saveDialogMock.mockReset()
+  })
+
+  it('Export XML disabled button has explanatory title and aria-disabled', async () => {
+    renderWithSeedProject(projectWithoutGenerated, 'Exportable')
+    const btn = await waitFor(() => screen.getByTestId('export-xml-btn'))
+    expect(btn).toBeDisabled()
+    expect(btn).toHaveAttribute('aria-disabled', 'true')
+    expect(btn).toHaveAttribute('title', 'Generate ST code to enable XML export')
+  })
+
+  it('Export CSV disabled button has explanatory title and aria-disabled when no HMI tags', async () => {
+    const projectNoHmi: Project = { ...projectWithExportable, hmi_table: { tags: [], reservedMRange: [100, 119], model: 'DVP-SS2' } }
+    renderWithSeedProject(projectNoHmi, 'Exportable')
+    const btn = await waitFor(() => screen.getByTestId('export-csv-btn'))
+    expect(btn).toBeDisabled()
+    expect(btn).toHaveAttribute('aria-disabled', 'true')
+    expect(btn).toHaveAttribute('title', expect.stringMatching(/No HMI tags/i))
+  })
+
+  it('Copy IL disabled button has explanatory title and aria-disabled when IL is missing', async () => {
+    renderWithSeedProject(projectWithoutIl, 'Exportable')
+    const btn = await waitFor(() => screen.getByTestId('copy-il-btn'))
+    expect(btn).toBeDisabled()
+    expect(btn).toHaveAttribute('aria-disabled', 'true')
+    expect(btn).toHaveAttribute('title', 'Generate IL code to enable copy')
+  })
+
+  it('Copy IL disabled when IL is whitespace-only', async () => {
+    const projectWhitespaceIl: Project = {
+      ...projectWithExportable,
+      generated: { st: 'Y0 := X0;', il: '   \n\t  ', generated_at: '2026-01-01T00:00:00Z' },
+    }
+    renderWithSeedProject(projectWhitespaceIl, 'Exportable')
+    const btn = await waitFor(() => screen.getByTestId('copy-il-btn'))
+    expect(btn).toBeDisabled()
+    expect(btn).toHaveAttribute('title', 'Generate IL code to enable copy')
+  })
+
+  it('enabled export buttons have no title and aria-disabled=false', async () => {
+    renderWithSeedProject(projectWithExportable, 'Exportable')
+    const xmlBtn = await waitFor(() => screen.getByTestId('export-xml-btn'))
+    const csvBtn = screen.getByTestId('export-csv-btn')
+    const ilBtn = screen.getByTestId('copy-il-btn')
+    for (const btn of [xmlBtn, csvBtn, ilBtn]) {
+      expect(btn).toBeEnabled()
+      expect(btn).toHaveAttribute('aria-disabled', 'false')
+      // No explanatory tooltip when enabled
+      expect(btn.getAttribute('title')).toBeFalsy()
+    }
+  })
+
+  it('Save button disabled when no dirty changes has title "No changes to save" and aria-disabled', async () => {
+    renderWithSeedProject(projectWithExportable, 'Exportable')
+    const btn = await waitFor(() => screen.getByTestId('save-btn'))
+    expect(btn).toBeDisabled()
+    expect(btn).toHaveAttribute('aria-disabled', 'true')
+    expect(btn).toHaveAttribute('title', 'No changes to save')
   })
 })

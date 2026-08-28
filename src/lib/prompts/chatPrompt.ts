@@ -113,9 +113,10 @@ export function buildChatPrompt(
     : '_(no ST code has been generated yet)_'
 
   // TODO(phase-2): when multi-turn history lands, fold `history` (filtered
-  // and length-capped) into the prompt as a chronological transcript so the
-  // LLM can see prior turns before the current request. Phase 1 only injects
-  // the immutable context plus the current turn.
+  // and length-capped, max ~8KB transcript) into the prompt as a chronological
+  // transcript so the LLM can see prior turns before the current request.
+  // Phase 1 only injects the immutable context plus the current turn.
+  // Length guard: sanitization already truncates to 8KB (sanitize.ts).
   void history
 
   return `${DVP_CHEATSHEET}
@@ -140,7 +141,8 @@ UPPERCASE per the cheatsheet.
 
 ${stBlock}
 
-## User Modification Request
+  ## User Modification Request
+Language: The request below may be English or Arabic/hybrid (Arabic + English engineering terms). Interpret it regardless of language; respond with CODE only (no natural-language translation).
 The user is asking for a specific change to the ST code above. Address ONLY
 the change they described — do not rewrite unrelated sections.
 

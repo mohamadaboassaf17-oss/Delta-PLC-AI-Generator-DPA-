@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useProject } from '@/hooks/useProject'
 import { buildChatPrompt } from '@/lib/prompts/chatPrompt'
+import { injectLabelComments } from '@/lib/prompts/stPrompt'
 import { settingsGet, secretGet, modifyCode, type ModificationDone, type ModificationError } from '@/lib/tauriApi'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type { ChatMessage } from '@/types/chat'
@@ -71,7 +72,7 @@ export function useChat(): UseChatResult {
       if (!isActive.current) return
       isActive.current = false
 
-      const st = event.payload.stCode
+      const st = injectLabelComments(event.payload.stCode, project?.io_table ?? [])
       setStreamingSt(st)
       setPendingSt(st)
       setPendingLdGraph(event.payload.ldGraph ?? null)
@@ -79,7 +80,7 @@ export function useChat(): UseChatResult {
       cleanupListeners()
       setShowDiff(true)
     },
-    [cleanupListeners],
+    [cleanupListeners, project],
   )
 
   const handleModificationError = useCallback(

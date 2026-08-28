@@ -218,7 +218,11 @@ export function STOutputPanel({ code, isStreaming, conflictReport }: STOutputPan
             })}
           </pre>
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-[var(--color-muted)]">
+          <div
+            data-testid="st-empty"
+            title="Generate code to view Structured Text"
+            className="flex h-full items-center justify-center text-sm text-[var(--color-muted)]"
+          >
             Generated ST code will appear here
           </div>
         )}

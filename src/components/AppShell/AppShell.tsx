@@ -21,12 +21,16 @@ function isOnboarded(): boolean {
 }
 
 function hasAnyKey(): Promise<boolean> {
-  return Promise.all([safeInvoke<string | null>('secret_get', { provider: 'openai' })])
-    .then(async ([openai]) => {
-      if (openai.data) return true
-      const anthropic = await safeInvoke<string | null>('secret_get', { provider: 'anthropic' })
-      if (anthropic.data) return true
-      return false
+  // Use the canonical `settings_has_api_key` alias (AGENTS.md:85) — verifies
+  // key presence via the OS keychain for all four providers (FIX-03).
+  return Promise.all([
+    safeInvoke<boolean>('settings_has_api_key', { provider: 'openai' }),
+    safeInvoke<boolean>('settings_has_api_key', { provider: 'anthropic' }),
+    safeInvoke<boolean>('settings_has_api_key', { provider: 'gemini' }),
+    safeInvoke<boolean>('settings_has_api_key', { provider: 'custom' }),
+  ])
+    .then(([openai, anthropic, gemini, custom]) => {
+      return Boolean(openai.data ?? anthropic.data ?? gemini.data ?? custom.data)
     })
     .catch(() => false)
 }
@@ -48,6 +52,14 @@ export function AppShell(): ReactElement {
     void hasAnyKey().then((has) => {
       if (!has) setByokOpen(true)
     })
+  }, [])
+
+  // M10.1 — deep-link: missing-key error banners dispatch `dpa:open-settings`
+  // so the user reaches Settings/Wizard in one click (no dead-end).
+  useEffect(() => {
+    const handler = (): void => setSettingsOpen(true)
+    window.addEventListener('dpa:open-settings', handler as EventListener)
+    return () => window.removeEventListener('dpa:open-settings', handler as EventListener)
   }, [])
 
   const handleByokComplete = (): void => {

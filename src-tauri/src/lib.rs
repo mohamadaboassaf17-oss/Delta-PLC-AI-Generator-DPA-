@@ -23,12 +23,16 @@ use crate::commands::project::ActiveProject;
 /// - The `tauri-plugin-opener` plugin (open URLs / files in the OS handler).
 /// - The `tauri-plugin-clipboard-manager` plugin (used by `copy_il_to_clipboard`).
 /// - Managed `ActiveProject` state for tracking the currently-open project.
-/// - Eighteen IPC commands covering project file I/O, settings persistence,
+/// - Thirty-two IPC commands covering project file I/O, settings persistence
+///   (including `settings_set_api_key`/`has_api_key`/`test_connection` aliases),
 ///   I/O table models, code generation, Ladder Diagram rendering, AI-review
-///   conflict scanning, DPA-ISPSoft / DOPSoft export, and secure API-key
-///   storage. See `commands::project`, `commands::settings`,
-///   `commands::io_table`, `commands::generation`, `commands::ladder`,
-///   `commands::conflict`, `commands::export`, and `commands::secrets`.
+///   conflict scanning, DPA-ISPSoft / DOPSoft export, Trust-on-First-Use
+///   domain gating, secure API-key storage, and recent-projects MRU
+///   (`recent_projects_*` canonical + `project_list_recent` legacy alias).
+///   See `commands::project`, `commands::recent_projects`,
+///   `commands::settings`, `commands::io_table`, `commands::generation`,
+///   `commands::ladder`, `commands::conflict`, `commands::export`,
+///   `commands::trusted_domains`, and `commands::secrets`.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -46,8 +50,14 @@ pub fn run() {
             commands::project::project_save_as,
             commands::project::project_list_recent,
             commands::project::project_clear_active,
+            commands::recent_projects::recent_projects_list,
+            commands::recent_projects::recent_projects_push,
+            commands::recent_projects::recent_projects_remove,
             commands::settings::settings_get,
             commands::settings::settings_set,
+            commands::settings::settings_set_api_key,
+            commands::settings::settings_has_api_key,
+            commands::settings::settings_test_connection,
             commands::secrets::secret_set,
             commands::secrets::secret_get,
             commands::secrets::secret_delete,

@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { buildStPrompt, parseGeneratedCode } from '@/lib/prompts/stPrompt'
+import { buildStPrompt, parseGeneratedCode, injectLabelComments } from '@/lib/prompts/stPrompt'
 import { secretGet, settingsGet, generateCode, dvpListModels, type DvpModelSpec } from '@/lib/tauriApi'
 import { processHmiFromLlm, type ProcessHmiInput } from '@/lib/hmi'
 import { useProject } from '@/hooks/useProject'
@@ -150,6 +150,9 @@ export function useGeneration(): UseGenerationResult {
               if (!st) st = parsed.st
               if (!il) il = parsed.il
             }
+
+            // M3 — deterministic label injection post-processor (PRD §4.4)
+            st = injectLabelComments(st, project?.io_table ?? [])
 
             setStreamingSt(st)
             setStreamingIl(il)

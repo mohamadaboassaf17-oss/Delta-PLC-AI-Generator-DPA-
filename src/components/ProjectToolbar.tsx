@@ -35,6 +35,8 @@ export function ProjectToolbar(): ReactElement {
     const result = await exportXml(project, path)
     if (result.error) {
       toast.error(`Export XML failed: ${result.error}`)
+    } else {
+      toast.success('XML exported successfully')
     }
   }
 
@@ -47,6 +49,8 @@ export function ProjectToolbar(): ReactElement {
     const result = await exportCsv(project, path)
     if (result.error) {
       toast.error(`Export CSV failed: ${result.error}`)
+    } else {
+      toast.success('CSV exported successfully')
     }
   }
 
@@ -55,6 +59,8 @@ export function ProjectToolbar(): ReactElement {
     const result = await copyIlToClipboard(project.generated.il)
     if (result.error) {
       toast.error(`Copy IL failed: ${result.error}`)
+    } else {
+      toast.success('IL copied to clipboard')
     }
   }
 
@@ -73,6 +79,17 @@ export function ProjectToolbar(): ReactElement {
     project.generated?.il && project.generated.il.trim().length > 0,
   )
 
+  const isSaveDisabled = !isDirty || saving
+  const saveTitle = saving
+    ? 'Saving in progress — please wait'
+    : !isDirty
+      ? 'No changes to save'
+      : undefined
+  const saveAsTitle = saving ? 'Saving in progress — please wait' : undefined
+  const exportXmlTitle = canExportXml ? undefined : 'Generate ST code to enable XML export'
+  const exportCsvTitle = canExportCsv ? undefined : 'No HMI tags to export — generate code first'
+  const copyIlTitle = canCopyIl ? undefined : 'Generate IL code to enable copy'
+
   return (
     <div
       data-testid="project-toolbar"
@@ -90,7 +107,10 @@ export function ProjectToolbar(): ReactElement {
         <button
           type="button"
           onClick={handleSave}
-          disabled={!isDirty || saving}
+          disabled={isSaveDisabled}
+          aria-disabled={isSaveDisabled}
+          title={saveTitle}
+          data-testid="save-btn"
           className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-1 text-xs text-[var(--color-text)] hover:bg-[var(--color-border)] disabled:opacity-40"
         >
           Save
@@ -99,6 +119,9 @@ export function ProjectToolbar(): ReactElement {
           type="button"
           onClick={handleSaveAs}
           disabled={saving}
+          aria-disabled={saving}
+          title={saveAsTitle}
+          data-testid="save-as-btn"
           className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-1 text-xs text-[var(--color-text)] hover:bg-[var(--color-border)] disabled:opacity-40"
         >
           Save As…
@@ -107,6 +130,8 @@ export function ProjectToolbar(): ReactElement {
           type="button"
           onClick={handleExportXml}
           disabled={!canExportXml}
+          aria-disabled={!canExportXml}
+          title={exportXmlTitle}
           data-testid="export-xml-btn"
           className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-1 text-xs text-[var(--color-text)] hover:bg-[var(--color-border)] disabled:opacity-40"
         >
@@ -116,6 +141,8 @@ export function ProjectToolbar(): ReactElement {
           type="button"
           onClick={handleExportCsv}
           disabled={!canExportCsv}
+          aria-disabled={!canExportCsv}
+          title={exportCsvTitle}
           data-testid="export-csv-btn"
           className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-1 text-xs text-[var(--color-text)] hover:bg-[var(--color-border)] disabled:opacity-40"
         >
@@ -125,6 +152,8 @@ export function ProjectToolbar(): ReactElement {
           type="button"
           onClick={handleCopyIl}
           disabled={!canCopyIl}
+          aria-disabled={!canCopyIl}
+          title={copyIlTitle}
           data-testid="copy-il-btn"
           className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-1 text-xs text-[var(--color-text)] hover:bg-[var(--color-border)] disabled:opacity-40"
         >

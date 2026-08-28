@@ -1,6 +1,6 @@
 //! Project file commands: new, open, save, save-as, recent list, clear active.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Mutex;
 
 use chrono::Utc;
@@ -9,12 +9,11 @@ use tauri::{AppHandle, Manager};
 use crate::error::AppError;
 use crate::limits::MAX_DPA_BYTES;
 use crate::models::project::{
-    migrate_v2_to_v3, ActiveProjectState, Project, RecentEntry, RecentList, SCHEMA_VERSION,
+    migrate_v2_to_v3, ActiveProjectState, Project, RecentEntry, SCHEMA_VERSION,
 };
 use crate::paths;
 
-/// Filename for the MRU list inside `app_data_dir`.
-const RECENT_FILE: &str = "recent.json";
+use crate::commands::recent_projects::{read_recent, upsert_recent};
 
 /// Managed state holding the currently-open project (if any) and its path.
 #[derive(Default)]
@@ -81,6 +80,8 @@ pub async fn project_save(project: Project, app: AppHandle) -> Result<(), AppErr
 
     let json = serde_json::to_string_pretty(&to_write)?;
     atomic_write(&path, &json).await?;
+    // FIX-02: saving also bumps MRU (PRD AGENTS.md:80) — same as save-as/open
+    upsert_recent(&app, &to_write, &path).await?;
 
     let state = app.state::<ActiveProject>();
     let mut guard = state
@@ -95,7 +96,9 @@ pub async fn project_save(project: Project, app: AppHandle) -> Result<(), AppErr
 
 /// Save the project to a new path, set it as the active project, and add it
 /// to the recent list. The path may omit `.dpa`; in that case the extension
-/// is appended. Traversal and empty paths are rejected.
+/// is appended. Traversal is rejected via `sanitize_dpa_path` (Component
+/// check); the previous string `contains("..")` guard was too broad
+/// (`my..file.dpa` would false-positive) and is now removed (G8).
 #[tauri::command]
 pub async fn project_save_as(
     project: Project,
@@ -104,11 +107,6 @@ pub async fn project_save_as(
 ) -> Result<(), AppError> {
     if path.trim().is_empty() {
         return Err(AppError::InvalidPath("save-as path is empty".into()));
-    }
-    if path.contains("..") {
-        return Err(AppError::InvalidPath(format!(
-            "save-as path contains traversal: {path}"
-        )));
     }
     let p = paths::ensure_dpa_extension(Path::new(&path));
     let p_str = p.to_string_lossy().to_string();
@@ -239,22 +237,6 @@ fn set_active(app: &AppHandle, new_state: ActiveProjectState) -> Result<(), AppE
     Ok(())
 }
 
-/// Read the persisted recent list, or return a default if absent/corrupt.
-async fn read_recent(app: &AppHandle) -> Result<RecentList, AppError> {
-    let path = recent_path(app)?;
-    if !path.exists() {
-        return Ok(RecentList::default());
-    }
-    let json = tokio::fs::read_to_string(&path)
-        .await
-        .map_err(AppError::Io)?;
-    if json.trim().is_empty() {
-        return Ok(RecentList::default());
-    }
-    let list = serde_json::from_str(&json).unwrap_or_else(|_| RecentList::default());
-    Ok(list)
-}
-
 /// Atomically replace the file at `path` with `json` (H4).
 ///
 /// Mirrors every other persistence site in the crate
@@ -283,60 +265,17 @@ async fn atomic_write(path: &Path, json: &str) -> Result<(), AppError> {
     }
 }
 
-/// Persist the recent list atomically (write to temp, then rename).
-async fn write_recent(app: &AppHandle, list: &RecentList) -> Result<(), AppError> {
-    let path = recent_path(app)?;
-    if let Some(parent) = path.parent() {
-        if !parent.as_os_str().is_empty() {
-            tokio::fs::create_dir_all(parent)
-                .await
-                .map_err(AppError::Io)?;
-        }
-    }
-    let json = serde_json::to_string_pretty(list)?;
-    let tmp = path.with_extension("json.tmp");
-    tokio::fs::write(&tmp, json).await.map_err(AppError::Io)?;
-    tokio::fs::rename(&tmp, &path).await.map_err(AppError::Io)?;
-    Ok(())
-}
-
-/// Insert or move the given project to the front of the MRU list, then
-/// truncate to the effective cap.
-async fn upsert_recent(app: &AppHandle, project: &Project, path: &Path) -> Result<(), AppError> {
-    let list = read_recent(app).await?;
-    let updated = upsert_recent_entry(list, project, path);
-    write_recent(app, &updated).await
-}
-
-/// Pure function (no I/O) that performs the MRU upsert + truncation. Kept
-/// separate from `upsert_recent` so it can be unit-tested without an
-/// `AppHandle`.
-pub fn upsert_recent_entry(mut list: RecentList, project: &Project, path: &Path) -> RecentList {
-    list.entries.retain(|e| e.id != project.id);
-    list.entries.insert(
-        0,
-        RecentEntry {
-            id: project.id.clone(),
-            name: project.name.clone(),
-            path: path.to_string_lossy().to_string(),
-            last_opened: Utc::now(),
-        },
-    );
-    let cap = list.effective_cap();
-    list.entries.truncate(cap);
-    list
-}
-
-/// Resolve the path to `<app_data_dir>/recent.json`.
-fn recent_path(app: &AppHandle) -> Result<PathBuf, AppError> {
-    let dir = paths::app_data_dir(app)?;
-    Ok(dir.join(RECENT_FILE))
-}
+// `write_recent`, `read_recent`, `upsert_recent`, `upsert_recent_entry`,
+// and `recent_path` now live in `crate::commands::recent_projects`
+// (canonical module for FIX-02).
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::recent_projects::upsert_recent_entry;
+    use crate::models::project::RecentList;
     use std::io::Write;
+    use std::path::PathBuf;
 
     #[test]
     fn new_project_has_version_three() {
@@ -387,7 +326,7 @@ mod tests {
         };
         for i in 0..5 {
             let p = Project::new(format!("P{i}"));
-            list = upsert_recent_entry(list, &p, Path::new("/x.dpa"));
+            list = upsert_recent_entry(list, &p, Path::new(&format!("/x{i}.dpa")));
         }
         assert_eq!(list.entries.len(), 2);
         assert_eq!(list.entries[0].name, "P4");
@@ -402,7 +341,7 @@ mod tests {
         };
         for i in 0..15 {
             let p = Project::new(format!("P{i}"));
-            list = upsert_recent_entry(list, &p, Path::new("/x.dpa"));
+            list = upsert_recent_entry(list, &p, Path::new(&format!("/x{i}.dpa")));
         }
         assert_eq!(list.entries.len(), 10);
     }

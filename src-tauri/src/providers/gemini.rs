@@ -185,7 +185,7 @@ impl AiProvider for GeminiProvider {
         let (code_label, human_msg) = match code {
             Some(400) => (
                 Some("INVALID_ARGUMENT"),
-                "\u{0645}\u{0641}\u{062A}\u{062D} API \u{063A}\u{064A}\u{0631} \u{0635}\u{0627}\u{0644}\u{062D} \u{2014} \u{062A}\u{062D}\u{0642}\u{0642} \u{0645}\u{0646} Google AI Studio".to_string(),
+                "\u{0645}\u{0641}\u{062A}\u{062D} API \u{063A}\u{064A}\u{0631} \u{0635}\u{0627}\u{0644}\u{062D} \u{2014} \u{062A}\u{062D}\u{0642}\u{0642} \u{0645}\u{0646} Google AI Studio: https://aistudio.google.com/apikey".to_string(),
             ),
             Some(403) => (
                 Some("PERMISSION_DENIED"),
@@ -193,13 +193,26 @@ impl AiProvider for GeminiProvider {
             ),
             Some(429) => (
                 Some("RESOURCE_EXHAUSTED"),
-                "\u{062A}\u{0645} \u{062A}\u{062C}\u{0627}\u{0648}\u{0632} \u{0627}\u{0644}\u{062D}\u{062F} \u{0627}\u{0644}\u{0645}\u{0633}\u{0645}\u{0648}\u{062D} (Rate Limit) \u{2014} \u{062D}\u{0627}\u{0648}\u{0644} \u{0628}\u{0639}\u{062F} \u{0642}\u{0644}\u{064A}\u{0644}".to_string(),
+                "\u{062A}\u{0645} \u{062A}\u{062C}\u{0627}\u{0648}\u{0632} \u{0627}\u{0644}\u{062D}\u{062F} \u{0627}\u{0644}\u{0645}\u{0633}\u{0645}\u{0648}\u{062D} (Rate Limit) \u{2014} \u{062D}\u{0627}\u{0648}\u{0644} \u{0628}\u{0639}\u{062F} \u{0642}\u{0644}\u{064A}\u{0644}: https://aistudio.google.com/apikey".to_string(),
             ),
             Some(503) => (
                 Some("UNAVAILABLE"),
                 "\u{062E}\u{062F}\u{0645}\u{0629} Gemini \u{063A}\u{064A}\u{0631} \u{0645}\u{062A}\u{0627}\u{062D}\u{0629} \u{0645}\u{0624}\u{0642}\u{062A}\u{0627}".to_string(),
             ),
-            _ => (None, msg),
+            _ => {
+                // Fallback on HTTP status when JSON code is absent (e.g. raw 401/429)
+                match status {
+                    401 => (
+                        Some("INVALID_ARGUMENT"),
+                        "\u{0645}\u{0641}\u{062A}\u{062D} API \u{063A}\u{064A}\u{0631} \u{0635}\u{0627}\u{0644}\u{062D} \u{2014} \u{062A}\u{062D}\u{0642}\u{0642} \u{0645}\u{0646} Google AI Studio: https://aistudio.google.com/apikey".to_string(),
+                    ),
+                    429 => (
+                        Some("RESOURCE_EXHAUSTED"),
+                        "\u{062A}\u{0645} \u{062A}\u{062C}\u{0627}\u{0648}\u{0632} \u{0627}\u{0644}\u{062D}\u{062F} \u{0627}\u{0644}\u{0645}\u{0633}\u{0645}\u{0648}\u{062D} (Rate Limit) \u{2014} \u{062D}\u{0627}\u{0648}\u{0644} \u{0628}\u{0639}\u{062F} \u{0642}\u{0644}\u{064A}\u{0644}: https://aistudio.google.com/apikey".to_string(),
+                    ),
+                    _ => (None, msg),
+                }
+            }
         };
         let message = if let Some(label) = code_label {
             format!("{label}: {human_msg}")

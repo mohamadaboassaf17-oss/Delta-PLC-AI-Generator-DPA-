@@ -3,6 +3,31 @@ import { useReview } from '@/hooks/useReview'
 import { useProject } from '@/hooks/useProject'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 
+function isMissingKeyErrorReview(message: string): boolean {
+  return message.includes('No API key') || message.includes('API key')
+}
+function extractRechargeLinkReview(message: string): string | null {
+  const match = message.match(/https:\/\/[^\s)]+/)
+  return match ? match[0] : null
+}
+function hasRechargeLinkReview(message: string): boolean {
+  return extractRechargeLinkReview(message) !== null
+}
+function renderReviewErrorWithLink(message: string): ReactElement {
+  const url = extractRechargeLinkReview(message)
+  if (!url) return <>{message}</>
+  const parts = message.split(url)
+  return (
+    <>
+      {parts[0]}
+      <a href={url} target="_blank" rel="noreferrer" className="underline hover:text-white">
+        {url}
+      </a>
+      {parts[1] ?? ''}
+    </>
+  )
+}
+
 export interface AIReviewPanelProps {
   /** Optional callback to open the chat panel (used for halt-on-conflict). */
   onOpenChat?: () => void
@@ -63,6 +88,16 @@ export function AIReviewPanel({ onOpenChat }: AIReviewPanelProps): ReactElement 
             data-testid="ai-review-run"
             onClick={handleRun}
             disabled={isReviewing || !hasGenerated || !isOnline}
+            aria-disabled={isReviewing || !hasGenerated || !isOnline}
+            title={
+              !isOnline
+                ? 'Requires internet connection'
+                : isReviewing
+                  ? 'Review in progress — please wait'
+                  : !hasGenerated
+                    ? 'Generate code to enable review'
+                    : 'Run AI safety review'
+            }
             className="rounded-md bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-900/50 disabled:text-blue-200/60"
           >
             {isReviewing ? 'Reviewing…' : 'Run Review'}
@@ -91,9 +126,30 @@ export function AIReviewPanel({ onOpenChat }: AIReviewPanelProps): ReactElement 
       {reviewError ? (
         <div
           data-testid="ai-review-error"
-          className="flex items-start gap-2 rounded-md border border-red-800 bg-red-950/50 px-3 py-2 text-xs text-red-300"
+          className="flex flex-col gap-2 rounded-md border border-red-800 bg-red-950/50 px-3 py-2 text-xs text-red-300"
         >
-          <span className="flex-1">{reviewError}</span>
+          <span className="flex-1">{renderReviewErrorWithLink(reviewError)}</span>
+          {isMissingKeyErrorReview(reviewError) && (
+            <button
+              type="button"
+              data-testid="open-settings-from-review-error"
+              onClick={() => window.dispatchEvent(new CustomEvent('dpa:open-settings'))}
+              className="self-start rounded-md bg-red-900/60 px-3 py-1 text-xs font-medium text-red-200 hover:bg-red-800/80 hover:text-white transition-colors"
+            >
+              Open Settings →
+            </button>
+          )}
+          {hasRechargeLinkReview(reviewError) && !isMissingKeyErrorReview(reviewError) && (
+            <a
+              href={extractRechargeLinkReview(reviewError) ?? '#'}
+              target="_blank"
+              rel="noreferrer"
+              data-testid="recharge-link-review-error"
+              className="self-start text-xs text-red-200 underline hover:text-white"
+            >
+              Recharge / Manage API key →
+            </a>
+          )}
         </div>
       ) : null}
 

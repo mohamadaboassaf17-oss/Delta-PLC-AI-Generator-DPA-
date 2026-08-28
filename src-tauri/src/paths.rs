@@ -56,7 +56,7 @@ pub fn ensure_dpa_extension(path: &Path) -> PathBuf {
 }
 
 /// Resolve the per-application data directory, creating it if it does not
-/// yet exist. Used for storing `recent.json`, `settings.json`, etc.
+/// yet exist. Used for storing `recent_projects.json`, `settings.json`, etc.
 pub fn app_data_dir(app: &AppHandle) -> Result<PathBuf, AppError> {
     let dir = app
         .path()

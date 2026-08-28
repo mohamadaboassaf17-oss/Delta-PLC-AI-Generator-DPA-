@@ -1,9 +1,24 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useReducer, type ReactElement, type ReactNode } from 'react'
 import { safeInvoke, projectClearActive as apiProjectClearActive } from '@/lib/tauriApi'
+import { emitRecentsRefresh } from '@/hooks/useRecentProjects'
 import type { Project, GeneratedCode } from '@/types/project'
 import type { IOPoint } from '@/types/io'
 import type { HmiTable } from '@/types/hmi'
 import type { ChatMessage } from '@/types/chat'
+
+// Ensure saved paths always end in `.dpa` (mirrors Rust `ensure_dpa_extension`)
+function ensureDpaExtension(path: string): string {
+  const trimmed = path.trim()
+  if (trimmed === '') return trimmed
+  const lower = trimmed.toLowerCase()
+  if (lower.endsWith('.dpa')) return trimmed
+  // If path has different extension, replace it
+  const dot = trimmed.lastIndexOf('.')
+  const slash = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'))
+  if (dot > slash) return `${trimmed.slice(0, dot)}.dpa`
+  return `${trimmed}.dpa`
+}
 
 export type ProjectStatus = 'idle' | 'new' | 'opened' | 'dirty' | 'saving' | 'error'
 
@@ -163,6 +178,8 @@ export function ProjectProvider({ children }: ProjectProviderProps): ReactElemen
       return
     }
     dispatch({ type: 'set_project', project: result.data, status: 'opened', path })
+    // FIX-02: backend bumps MRU on open — notify the recents bus
+    emitRecentsRefresh()
   }
 
   const save = async (): Promise<void> => {
@@ -186,6 +203,7 @@ export function ProjectProvider({ children }: ProjectProviderProps): ReactElemen
       status: 'opened',
       path: state.path,
     })
+    emitRecentsRefresh()
   }
 
   const saveAs = async (path: string): Promise<void> => {
@@ -194,9 +212,10 @@ export function ProjectProvider({ children }: ProjectProviderProps): ReactElemen
       return
     }
     dispatch({ type: 'start_saving' })
+    const normalized = ensureDpaExtension(path)
     const result = await safeInvoke<void>('project_save_as', {
       project: state.project,
-      path,
+      path: normalized,
     })
     if (result.error) {
       dispatch({ type: 'set_error', error: result.error })
@@ -206,8 +225,9 @@ export function ProjectProvider({ children }: ProjectProviderProps): ReactElemen
       type: 'set_project',
       project: state.project,
       status: 'opened',
-      path,
+      path: normalized,
     })
+    emitRecentsRefresh()
   }
 
   const markDirty = (): void => {
@@ -217,6 +237,7 @@ export function ProjectProvider({ children }: ProjectProviderProps): ReactElemen
   const close = (): void => {
     void apiProjectClearActive()
     dispatch({ type: 'clear' })
+    emitRecentsRefresh()
   }
 
   const setGenerated = useCallback((generated: GeneratedCode) => {

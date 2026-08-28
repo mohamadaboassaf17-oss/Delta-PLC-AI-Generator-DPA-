@@ -72,6 +72,111 @@ pub fn sanitize_prompt_input(input: &str) -> String {
     out
 }
 
+/// M3 — Deterministic label injection for ST code.
+///
+/// Mirrors the frontend `injectLabelComments` in `src/lib/prompts/stPrompt.ts`.
+/// Given ST text and a slice of `(address, label)` pairs, ensures every
+/// label appears as a `//` comment directly above the first ST line that
+/// references its address. Idempotent — calling twice yields the same output.
+#[allow(dead_code)]
+pub fn inject_label_comments(st: &str, labels: &[(String, String)]) -> String {
+    if st.is_empty() || labels.is_empty() {
+        return st.to_string();
+    }
+    use std::collections::HashMap;
+    let mut map: HashMap<String, String> = HashMap::new();
+    for (addr, label) in labels {
+        let trimmed = label.trim();
+        if !trimmed.is_empty() {
+            map.insert(addr.to_uppercase(), trimmed.to_string());
+        }
+    }
+    if map.is_empty() {
+        return st.to_string();
+    }
+
+    let mut out: Vec<String> = Vec::new();
+    for line in st.split('\n') {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with("//") || trimmed.starts_with("(*") {
+            out.push(line.to_string());
+            continue;
+        }
+        // Collect unique labels referenced on this line
+        let mut found: Vec<String> = Vec::new();
+        let mut seen_addrs: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let chars: Vec<char> = line.chars().collect();
+        let mut i = 0;
+        while i < chars.len() {
+            let c = chars[i];
+            let is_prefix = matches!(c.to_ascii_uppercase(), 'X' | 'Y' | 'M' | 'S' | 'T' | 'C' | 'D');
+            if is_prefix {
+                // check previous char is not alnum/_ (word boundary)
+                let prev_is_word = if i > 0 {
+                    let p = chars[i - 1];
+                    p.is_alphanumeric() || p == '_'
+                } else {
+                    false
+                };
+                if !prev_is_word {
+                    // collect digits
+                    let mut j = i + 1;
+                    while j < chars.len() && chars[j].is_ascii_digit() {
+                        j += 1;
+                    }
+                    if j > i + 1 {
+                        // check next char is not alnum/_ (word boundary)
+                        let next_is_word = if j < chars.len() {
+                            let n = chars[j];
+                            n.is_alphanumeric() || n == '_'
+                        } else {
+                            false
+                        };
+                        if !next_is_word {
+                            let addr: String = chars[i..j].iter().collect();
+                            let upper = addr.to_uppercase();
+                            if !seen_addrs.contains(&upper) {
+                                seen_addrs.insert(upper.clone());
+                                if let Some(label) = map.get(&upper) {
+                                    if !found.contains(label) {
+                                        found.push(label.clone());
+                                    }
+                                }
+                            }
+                            i = j;
+                            continue;
+                        }
+                    }
+                }
+            }
+            i += 1;
+        }
+        if found.is_empty() {
+            out.push(line.to_string());
+            continue;
+        }
+        // Idempotency: if the preceding out lines are exactly the same comment sequence, skip
+        let already_present = if out.len() >= found.len() {
+            found.iter().enumerate().all(|(idx, lab)| {
+                out[out.len() - found.len() + idx].trim() == format!("// {}", lab)
+            })
+        } else {
+            false
+        };
+        if !already_present {
+            let indent: String = line.chars().take_while(|c| c.is_whitespace()).collect();
+            for lab in &found {
+                if out.last().map(|s| s.trim() == format!("// {}", lab)).unwrap_or(false) {
+                    continue;
+                }
+                out.push(format!("{}// {}", indent, lab));
+            }
+        }
+        out.push(line.to_string());
+    }
+    out.join("\n")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -186,5 +291,88 @@ mod tests {
         assert!(out.contains("αβγ"));
         assert!(out.contains("中文"));
         assert!(!out.contains("---ST---"));
+    }
+
+    // --- M3: inject_label_comments ----------------------------------------
+
+    #[test]
+    fn inject_labels_adds_comment_above_referenced_address() {
+        let st = "Y0 := X0;";
+        let labels = vec![
+            ("X0".to_string(), "Start Button".to_string()),
+            ("Y0".to_string(), "Motor".to_string()),
+        ];
+        let out = inject_label_comments(st, &labels);
+        // Both addresses appear on same line → both labels prepended in appearance order (Y0 then X0)
+        assert!(out.contains("// Start Button"), "got: {out}");
+        assert!(out.contains("// Motor"), "got: {out}");
+        assert!(out.contains("Y0 := X0;"));
+        // Comments appear before the code line in left-to-right scan order
+        let lines: Vec<&str> = out.lines().collect();
+        assert_eq!(lines[0].trim(), "// Motor");
+        assert_eq!(lines[1].trim(), "// Start Button");
+        assert_eq!(lines[2].trim(), "Y0 := X0;");
+    }
+
+    #[test]
+    fn inject_labels_is_idempotent() {
+        let st = "Y0 := X0;";
+        let labels = vec![("X0".to_string(), "Start".to_string())];
+        let once = inject_label_comments(st, &labels);
+        let twice = inject_label_comments(&once, &labels);
+        assert_eq!(once, twice);
+    }
+
+    #[test]
+    fn inject_labels_skips_existing_comment() {
+        let st = "// Start\nY0 := X0;";
+        let labels = vec![("X0".to_string(), "Start".to_string())];
+        let out = inject_label_comments(st, &labels);
+        assert_eq!(out, "// Start\nY0 := X0;");
+    }
+
+    #[test]
+    fn inject_labels_empty_st_or_no_labels_returns_unchanged() {
+        assert_eq!(inject_label_comments("", &[]), "");
+        assert_eq!(
+            inject_label_comments("Y0 := X0;", &[]),
+            "Y0 := X0;"
+        );
+        assert_eq!(
+            inject_label_comments(
+                "Y0 := X0;",
+                &[("X0".to_string(), "".to_string())]
+            ),
+            "Y0 := X0;"
+        );
+    }
+
+    #[test]
+    fn inject_labels_preserves_indentation() {
+        let st = "    Y0 := X0;";
+        let labels = vec![("X0".to_string(), "Sensor".to_string())];
+        let out = inject_label_comments(st, &labels);
+        assert!(out.contains("    // Sensor"), "got: {out}");
+    }
+
+    #[test]
+    fn inject_labels_handles_multiple_lines() {
+        let st = "Y0 := X0;\nY1 := X1;";
+        let labels = vec![
+            ("X0".to_string(), "A".to_string()),
+            ("Y0".to_string(), "B".to_string()),
+            ("X1".to_string(), "C".to_string()),
+            ("Y1".to_string(), "D".to_string()),
+        ];
+        let out = inject_label_comments(st, &labels);
+        let lines: Vec<&str> = out.lines().collect();
+        // First statement Y0:=X0 → appearance order B (Y0) then A (X0)
+        assert_eq!(lines[0].trim(), "// B");
+        assert_eq!(lines[1].trim(), "// A");
+        assert_eq!(lines[2].trim(), "Y0 := X0;");
+        // Second statement Y1:=X1 → D then C
+        assert_eq!(lines[3].trim(), "// D");
+        assert_eq!(lines[4].trim(), "// C");
+        assert_eq!(lines[5].trim(), "Y1 := X1;");
     }
 }

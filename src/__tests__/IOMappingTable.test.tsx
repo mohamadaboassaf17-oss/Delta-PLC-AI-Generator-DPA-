@@ -101,24 +101,29 @@ describe('IOMappingTable', () => {
 
     expect(screen.getByTestId('io-address-1')).toHaveValue('X1')
     expect(screen.getByTestId('io-address-2')).toHaveValue('Y0')
-    expect(screen.getByTestId('io-type-0')).toHaveValue('Input')
-    expect(screen.getByTestId('io-type-1')).toHaveValue('Input')
-    expect(screen.getByTestId('io-type-2')).toHaveValue('Output')
+    expect(screen.getByTestId('io-type-0')).toHaveTextContent('Input')
+    expect(screen.getByTestId('io-type-1')).toHaveTextContent('Input')
+    expect(screen.getByTestId('io-type-2')).toHaveTextContent('Output')
     expect(screen.getByTestId('io-label-0')).toHaveValue('Start')
     expect(screen.getByTestId('io-label-1')).toHaveValue('Stop')
     expect(screen.getByTestId('io-label-2')).toHaveValue('Motor')
   })
 
   it('populates model selector with four DVP models', async () => {
+    const user = userEvent.setup()
     renderWithProject()
 
     await waitFor(() => {
-      expect(screen.getByText('DVP-SS2')).toBeInTheDocument()
+      expect(screen.getByTestId('model-select')).toBeInTheDocument()
+    })
+    await user.click(screen.getByTestId('model-select'))
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: 'DVP-SS2' })).toBeInTheDocument()
     })
 
-    expect(screen.getByText('DVP-SE')).toBeInTheDocument()
-    expect(screen.getByText('DVP-SX2')).toBeInTheDocument()
-    expect(screen.getByText('DVP-SV2')).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'DVP-SE' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'DVP-SX2' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'DVP-SV2' })).toBeInTheDocument()
   })
 
   it('selecting a model updates the select value', async () => {
@@ -126,12 +131,16 @@ describe('IOMappingTable', () => {
     renderWithProject()
 
     await waitFor(() => {
-      expect(screen.getByText('DVP-SX2')).toBeInTheDocument()
+      expect(screen.getByTestId('model-select')).toBeInTheDocument()
+    })
+    await user.click(screen.getByTestId('model-select'))
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: 'DVP-SX2' })).toBeInTheDocument()
     })
 
-    await user.selectOptions(screen.getByTestId('model-select'), 'DVP-SX2')
+    await user.click(screen.getByRole('option', { name: 'DVP-SX2' }))
 
-    expect(screen.getByTestId('model-select')).toHaveValue('DVP-SX2')
+    expect(screen.getByTestId('model-select')).toHaveTextContent('DVP-SX2')
   })
 
   it('adds a new row with Input type and X0 address', async () => {
@@ -144,7 +153,7 @@ describe('IOMappingTable', () => {
 
     await user.click(screen.getByTestId('io-add-row'))
 
-    expect(screen.getByTestId('io-type-0')).toHaveValue('Input')
+    expect(screen.getByTestId('io-type-0')).toHaveTextContent('Input')
     expect(screen.getByTestId('io-address-0')).toHaveValue('X0')
   })
 
@@ -163,9 +172,9 @@ describe('IOMappingTable', () => {
     expect(screen.getByTestId('io-address-0')).toHaveValue('X0')
     expect(screen.getByTestId('io-address-1')).toHaveValue('X1')
     expect(screen.getByTestId('io-address-2')).toHaveValue('X2')
-    expect(screen.getByTestId('io-type-0')).toHaveValue('Input')
-    expect(screen.getByTestId('io-type-1')).toHaveValue('Input')
-    expect(screen.getByTestId('io-type-2')).toHaveValue('Input')
+    expect(screen.getByTestId('io-type-0')).toHaveTextContent('Input')
+    expect(screen.getByTestId('io-type-1')).toHaveTextContent('Input')
+    expect(screen.getByTestId('io-type-2')).toHaveTextContent('Input')
   })
 
   it('deletes a row when delete button is clicked', async () => {
@@ -217,9 +226,10 @@ describe('IOMappingTable', () => {
 
     expect(screen.getByTestId('io-address-0')).toHaveValue('X0')
 
-    await user.selectOptions(screen.getByTestId('io-type-0'), 'Output')
+    await user.click(screen.getByTestId('io-type-0'))
+    await user.click(screen.getByRole('option', { name: 'Output' }))
 
-    expect(screen.getByTestId('io-type-0')).toHaveValue('Output')
+    expect(screen.getByTestId('io-type-0')).toHaveTextContent('Output')
     expect(screen.getByTestId('io-address-0')).toHaveValue('Y0')
   })
 

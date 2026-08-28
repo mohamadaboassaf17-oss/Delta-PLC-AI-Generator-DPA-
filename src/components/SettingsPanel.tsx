@@ -14,6 +14,8 @@ import {
 } from '@/lib/validators/temperature'
 import { validateCustomBaseUrl } from '@/lib/validators/customProvider'
 import { TrustDomainModal } from '@/components/TrustDomainModal'
+import { Dropdown } from '@/components/Dropdown'
+import { ApiKeySettings } from '@/components/ApiKeySettings'
 import {
   AnthropicIcon,
   CustomIcon,
@@ -398,20 +400,31 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps): ReactEleme
         </div>
       </fieldset>
 
+      {/* M4 FIX-01: per-provider masked API key field — always visible for the active provider */}
+      <ApiKeySettings provider={draft.active_provider} />
 
       <fieldset className="mb-4">
         <legend className="mb-2 text-xs uppercase tracking-wider text-[var(--color-muted)]">
           Generation
         </legend>
-        <label className="mb-2 block text-sm">
+        {/* FIX-07: custom Dropdown must not sit inside a wrapping <label> —
+            label click re-forwarding double-fires the trigger (open+close).
+            Accessibility is provided via aria-label on each control. */}
+        <div className="mb-2 text-sm">
           Model
           <div className="mt-1 flex gap-2">
             {draft.active_provider === 'gemini' ? (
               <>
-                <select
-                  value={GEMINI_MODEL_OPTIONS.includes(draft.generation.model) ? draft.generation.model : GEMINI_CUSTOM_SENTINEL}
-                  onChange={(e) => {
-                    const v = e.target.value
+                <Dropdown
+                  testId="gemini-model-select"
+                  ariaLabel="Gemini model"
+                  className="flex-1"
+                  value={
+                    GEMINI_MODEL_OPTIONS.includes(draft.generation.model)
+                      ? draft.generation.model
+                      : GEMINI_CUSTOM_SENTINEL
+                  }
+                  onChange={(v) => {
                     if (v === GEMINI_CUSTOM_SENTINEL) {
                       // Switching to Custom: clear the model so the
                       // text input below becomes the source of truth.
@@ -420,20 +433,14 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps): ReactEleme
                       handleChangeModel(v)
                     }
                   }}
-                  data-testid="gemini-model-select"
-                  className="flex-1 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-sm"
-                >
-                  {GEMINI_MODEL_OPTIONS.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+                  options={GEMINI_MODEL_OPTIONS.map((m) => ({ value: m, label: m }))}
+                />
                 {draft.generation.model === '' ||
                 !GEMINI_MODEL_OPTIONS.includes(draft.generation.model) ? (
                   <input
                     type="text"
                     placeholder="custom Gemini model"
+                    aria-label="Custom Gemini model"
                     value={draft.generation.model}
                     onChange={(e) => handleChangeModel(e.target.value)}
                     data-testid="gemini-custom-model-input"
@@ -444,6 +451,7 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps): ReactEleme
             ) : (
               <input
                 type="text"
+                aria-label="Model"
                 value={draft.generation.model}
                 onChange={(e) => handleChangeModel(e.target.value)}
                 data-testid="model-input"
@@ -487,7 +495,7 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps): ReactEleme
               )}
             </button>
           </div>
-        </label>
+        </div>
         {testMessage !== null && (
           <p
             role="status"
@@ -630,20 +638,17 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps): ReactEleme
 
       <fieldset className="mb-4">
         <legend className="mb-2 text-xs uppercase tracking-wider text-[var(--color-muted)]">UI</legend>
-        <label className="mb-2 block text-sm">
+        {/* FIX-07: no wrapping <label> around the Dropdown (see Model field note). */}
+        <div className="mb-2 text-sm">
           Theme
-          <select
+          <Dropdown
+            className="mt-1"
+            ariaLabel="Theme"
             value={draft.ui.theme}
-            onChange={(e) => handleChangeTheme(e.target.value as Theme)}
-            className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-sm"
-          >
-            {THEMES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </label>
+            onChange={(v) => handleChangeTheme(v as Theme)}
+            options={THEMES.map((t) => ({ value: t, label: t }))}
+          />
+        </div>
         <label className="mb-2 block text-sm">
           Language (BCP-47)
           <input

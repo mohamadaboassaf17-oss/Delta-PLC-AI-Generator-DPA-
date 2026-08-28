@@ -22,9 +22,13 @@ export function useCodeConflicts(): UseCodeConflictsResult {
   const [error, setError] = useState<string | null>(null)
   // Guard against overlap of refresh + manual scan calls.
   const inFlight = useRef(false)
+  const reportRef = useRef<ConflictReport | null>(null)
+  useEffect(() => {
+    reportRef.current = report
+  }, [report])
 
   const scan = useCallback(async (): Promise<ConflictReport | null> => {
-    if (inFlight.current) return report
+    if (inFlight.current) return reportRef.current
     const stCode = project?.generated?.st ?? ''
     if (!stCode.trim()) {
       setReport(null)
@@ -56,7 +60,7 @@ export function useCodeConflicts(): UseCodeConflictsResult {
     const newReport = result.data ?? null
     setReport(newReport)
     return newReport
-  }, [project, report])
+  }, [project])
 
   const clear = useCallback(() => {
     setReport(null)

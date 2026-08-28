@@ -50,7 +50,7 @@ export function WelcomeScreen({ onOpenSettings }: WelcomeScreenProps): ReactElem
   }
 
   const handleRemoveRecent = (entry: { path: string }): void => {
-    remove(entry.path)
+    void remove(entry.path)
   }
 
   return (

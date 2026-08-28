@@ -47,8 +47,9 @@ duplicate them.
 
 ${hmiContext}
 
-## Generated ST Code — TO BE REVIEWED
+  ## Generated ST Code — TO BE REVIEWED
 ${modelInfo}
+Language: The original description may have been English or Arabic/hybrid. Review the CODE only (do not translate).
 
 \`\`\`st
 ${stCode}

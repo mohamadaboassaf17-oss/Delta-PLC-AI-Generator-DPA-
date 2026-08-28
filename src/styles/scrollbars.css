@@ -1,0 +1,41 @@
+/*
+ * Themed dark scrollbars — PRD v2.1 FIX-04 / §6.4.
+ *
+ * Why custom CSS: Tailwind v4 ships no first-class scrollbar utilities,
+ * and native scrollbars render light in WebView2 unless themed. This file
+ * is the sanctioned custom-CSS exception (AGENTS.md → "CSS / Tailwind").
+ *
+ * Rule: every scrollable region in the app inherits these styles.
+ * Do NOT introduce native light scrollbars anywhere (PRD §6.4 / FIX-04).
+ */
+
+/* Firefox (harmless no-op in Chromium/WebView2, kept for cross-engine safety) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+/* Chromium / WebView2 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-muted);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}

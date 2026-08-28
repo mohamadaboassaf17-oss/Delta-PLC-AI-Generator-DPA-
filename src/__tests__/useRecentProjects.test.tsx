@@ -44,15 +44,43 @@ describe('useRecentProjects', () => {
   })
 
   it('filters out a recents entry by path on remove', async () => {
-    invokeMock.mockResolvedValue(sample)
+    // First call: initial load -> full sample. Second call: remove cmd -> void. Third call: refresh after remove -> filtered sample.
+    let listCalls = 0
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'recent_projects_remove' || cmd === 'project_list_recent' || cmd === 'recent_projects_list') {
+        // Distinguish by order: first list call returns full sample, second list call (after remove) returns filtered.
+        if (cmd === 'recent_projects_remove') return Promise.resolve(undefined)
+        listCalls++
+        if (listCalls === 1) return Promise.resolve(sample)
+        return Promise.resolve(sample.filter((r) => r.path !== '/tmp/beta.dpa'))
+      }
+      // Fallback for any other invoke during the hook
+      return Promise.resolve(sample)
+    })
     const { result } = renderHook(() => useRecentProjects())
     await waitFor(() => expect(result.current.recents).toEqual(sample))
-    act(() => {
-      result.current.remove('/tmp/beta.dpa')
+    await act(async () => {
+      await result.current.remove('/tmp/beta.dpa')
     })
-    expect(result.current.recents.map((r) => r.path)).toEqual([
-      '/tmp/alpha.dpa',
-      '/tmp/gamma.dpa',
-    ])
+    await waitFor(() =>
+      expect(result.current.recents.map((r) => r.path)).toEqual([
+        '/tmp/alpha.dpa',
+        '/tmp/gamma.dpa',
+      ]),
+    )
+    expect(invokeMock).toHaveBeenCalledWith('recent_projects_remove', { path: '/tmp/beta.dpa' })
+  })
+
+  it('refreshes via global event bus (FIX-02)', async () => {
+    invokeMock.mockResolvedValue(sample)
+    const { result } = renderHook(() => useRecentProjects())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    const updated: RecentEntry[] = [
+      { id: '4', name: 'Delta', path: '/tmp/delta.dpa', last_opened: '2026-01-04T00:00:00Z' },
+    ]
+    invokeMock.mockResolvedValue(updated)
+    // Simulate ProjectContext save emitting the global event
+    window.dispatchEvent(new Event('dpa:recents:refresh'))
+    await waitFor(() => expect(result.current.recents).toEqual(updated))
   })
 })

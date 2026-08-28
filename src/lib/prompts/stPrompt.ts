@@ -47,6 +47,7 @@ ${ioContext}
 
 ## Generation Task
 ${modelInfo}
+Language: The description below may be English or Arabic/hybrid (Arabic + English engineering terms). Interpret it as the automation requirement regardless of language.
 
 Generate PLC code for the following automation requirement:
 
@@ -107,4 +108,71 @@ export function parseGeneratedCode(raw: string): { st: string; il: string; hmi: 
     il: ilMatch ? ilMatch[1].trim() : '',
     hmi: hmiMatch ? hmiMatch[1].trim() : '',
   }
+}
+
+/**
+ * M3 — Deterministic label injection.
+ *
+ * Ensures every I/O label appears as a `//` comment directly above the
+ * first ST line that references its address. This is the authoritative
+ * post-processor for PRD §4.4 / tasks.md M3-5: the LLM is *requested* to
+ * emit comments (Strict Rule 7) but this pass guarantees the invariant
+ * even when the model omits them. Idempotent — running twice yields the
+ * same output.
+ */
+export function injectLabelComments(st: string, ioTable: IOPoint[]): string {
+  if (!st || ioTable.length === 0) return st
+  const labelMap = new Map<string, string>()
+  for (const p of ioTable) {
+    const label = p.label?.trim()
+    if (label) labelMap.set(p.address.toUpperCase(), label)
+  }
+  if (labelMap.size === 0) return st
+
+  const lines = st.split('\n')
+  const out: string[] = []
+  const addrRe = /\b([XYMSTD]\d+)\b/gi
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (trimmed === '' || trimmed.startsWith('//') || trimmed.startsWith('(*')) {
+      out.push(line)
+      continue
+    }
+    const found: string[] = []
+    const seen = new Set<string>()
+    let m: RegExpExecArray | null
+    // reset lastIndex for each line
+    addrRe.lastIndex = 0
+    while ((m = addrRe.exec(line)) !== null) {
+      const addr = m[0].toUpperCase()
+      if (seen.has(addr)) continue
+      seen.add(addr)
+      const label = labelMap.get(addr)
+      if (label && !found.includes(label)) found.push(label)
+    }
+    if (found.length === 0) {
+      out.push(line)
+      continue
+    }
+    // Idempotency: if the immediately preceding output lines are exactly
+    // the same `// label` sequence, don't duplicate.
+    let alreadyPresent = false
+    if (out.length >= found.length) {
+      alreadyPresent = found.every((lab, idx) => {
+        const prev = out[out.length - found.length + idx]
+        return prev.trim() === `// ${lab}`
+      })
+    }
+    if (!alreadyPresent) {
+      const indent = line.match(/^\s*/)?.[0] ?? ''
+      for (const lab of found) {
+        // avoid duplicating a single trailing comment
+        if (out.length > 0 && out[out.length - 1].trim() === `// ${lab}`) continue
+        out.push(`${indent}// ${lab}`)
+      }
+    }
+    out.push(line)
+  }
+  return out.join('\n')
 }

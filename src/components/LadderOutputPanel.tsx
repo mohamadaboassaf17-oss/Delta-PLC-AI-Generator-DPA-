@@ -53,6 +53,8 @@ function LadderCanvas({ graph, fullscreen = false }: LadderOutputPanelProps): Re
     return (
       <div
         data-testid="ladder-empty"
+        title="Generate code to view the Ladder Diagram"
+        aria-label="Ladder diagram empty — generate code to view"
         className={`flex items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] text-sm text-[var(--color-muted)] ${sizingClass}`}
       >
         Ladder diagram will appear here after code generation

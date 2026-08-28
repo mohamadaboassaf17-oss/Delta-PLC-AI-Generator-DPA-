@@ -36,6 +36,8 @@ export function ILOoutputPanel({ code }: ILOoutputPanelProps): ReactElement {
           data-testid="copy-il-button"
           onClick={handleCopy}
           disabled={!hasContent}
+          aria-disabled={!hasContent}
+          title={hasContent ? 'Copy IL to clipboard (WPLSoft-ready)' : 'Generate code to enable copy'}
           className="flex items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2.5 py-1 text-xs text-[var(--color-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {copied ? (
@@ -58,15 +60,27 @@ export function ILOoutputPanel({ code }: ILOoutputPanelProps): ReactElement {
       </div>
       <div className="flex-1 overflow-auto p-4">
         {hasContent ? (
-          <pre className="font-mono text-xs leading-relaxed whitespace-pre-wrap break-words text-[var(--color-text)]">
+          <pre
+            data-testid="il-code"
+            className="font-mono text-xs leading-relaxed whitespace-pre-wrap break-words text-[var(--color-text)]"
+          >
             {code}
           </pre>
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-[var(--color-muted)]">
+          <div
+            data-testid="il-empty"
+            title="Generate code to view Instruction List"
+            className="flex h-full items-center justify-center text-sm text-[var(--color-muted)]"
+          >
             Generated IL code will appear here
           </div>
         )}
       </div>
+      {copied && (
+        <span data-testid="il-copied-announcement" className="sr-only" aria-live="polite">
+          Copied IL to clipboard
+        </span>
+      )}
     </div>
   )
 }
